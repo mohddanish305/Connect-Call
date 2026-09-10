@@ -1,8 +1,13 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectcall/core/utils/date_formatter.dart';
 import 'package:connectcall/models/call_model.dart';
 import 'package:connectcall/models/user_model.dart';
 import 'package:connectcall/models/call_session.dart';
+import 'package:connectcall/services/onboarding_service.dart';
+import 'package:connectcall/screens/onboarding/onboarding_screen.dart';
 
 void main() {
   group('DateFormatter Tests', () {
@@ -105,6 +110,54 @@ void main() {
       expect(updated.isMuted, isTrue);
       expect(updated.status, CallStatus.inCall);
       expect(updated.durationSeconds, 45);
+    });
+  });
+
+  group('Onboarding Tests', () {
+    test('OnboardingService completes and resets properly', () async {
+      SharedPreferences.setMockInitialValues({});
+      final service = OnboardingService();
+
+      expect(await service.isOnboardingCompleted(), isFalse);
+
+      await service.completeOnboarding();
+      expect(await service.isOnboardingCompleted(), isTrue);
+
+      await service.resetOnboarding();
+      expect(await service.isOnboardingCompleted(), isFalse);
+    });
+
+    testWidgets('OnboardingScreen renders first page and allows advancing', (WidgetTester tester) async {
+      SharedPreferences.setMockInitialValues({});
+
+      await tester.pumpWidget(
+        const ProviderScope(
+          child: MaterialApp(
+            home: OnboardingScreen(),
+          ),
+        ),
+      );
+
+      // Verify Screen 1
+      expect(find.text('Connect with anyone'), findsOneWidget);
+      expect(find.text('Find your people and stay connected wherever you are.'), findsOneWidget);
+      expect(find.text('Skip'), findsOneWidget);
+      expect(find.text('Next'), findsOneWidget);
+
+      // Tap Next -> Screen 2
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Crystal-clear calling'), findsOneWidget);
+      expect(find.text('Make seamless audio and video calls with the people who matter.'), findsOneWidget);
+
+      // Tap Next -> Screen 3
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Always stay connected'), findsOneWidget);
+      expect(find.text('Call, chat and keep track of your conversations in one simple place.'), findsOneWidget);
+      expect(find.text('Get Started'), findsOneWidget);
     });
   });
 }
