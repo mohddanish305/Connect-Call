@@ -12,34 +12,71 @@
 .swiftpm/
 migrate_working_dir/
 
-# IntelliJ related
+# IDE and Editor Files
 *.iml
 *.ipr
 *.iws
 .idea/
+.vscode/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
-
-# Flutter/Dart/Pub related
+# Flutter / Dart / Pub Build Artifacts
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
+build/
 /build/
+coverage/
 /coverage/
 
-# Symbolication related
-app.*.symbols
-
-# Obfuscation related
-app.*.map.json
-
-# Android Studio will place build artifacts here
+# Android Build and Keystore Artifacts
+.gradle/
+android/.gradle/
+android/build/
+android/app/build/
 /android/app/debug
 /android/app/profile
 /android/app/release
+*.jks
+*.keystore
+
+# Symbolication and Obfuscation
+app.*.symbols
+app.*.map.json
+
+# Node & Backend Dependencies
+node_modules/
+backend/node_modules/
+backend-worker/node_modules/
+.wrangler/
+backend-worker/.wrangler/
+
+# Security and Credentials
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+backend-worker/.env
+backend-worker/.env.*
+!backend-worker/.env.example
+backend-worker/.dev.vars
+backend-worker/.dev.vars.*
+!backend-worker/.dev.vars.example
+
+
+# Firebase Service Account Admin Secrets (Private Keys - NEVER COMMIT)
+service-account*.json
+*serviceAccountKey*.json
+*service_account*.json
+firebase-adminsdk*.json
+
+# Debug & Temporary Configurations
+lib/core/config/agora_debug_config.dart
+

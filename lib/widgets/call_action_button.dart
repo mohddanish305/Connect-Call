@@ -7,6 +7,7 @@ enum CallButtonType { normal, active, endCall, acceptCall }
 class CallActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
+  final String? semanticLabel;
   final VoidCallback onPressed;
   final CallButtonType type;
   final double size;
@@ -16,6 +17,7 @@ class CallActionButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onPressed,
+    this.semanticLabel,
     this.type = CallButtonType.normal,
     this.size = 56,
   });
@@ -47,17 +49,20 @@ class CallActionButton extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Material(
-          color: Colors.transparent,
-          shape: const CircleBorder(),
-          child: InkWell(
-            onTap: onPressed,
-            customBorder: const CircleBorder(),
-            child: Ink(
-              width: size,
-              height: size,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
+        Semantics(
+          button: true,
+          label: semanticLabel ?? (label.isNotEmpty ? label : 'Call action'),
+          child: Material(
+            color: Colors.transparent,
+            shape: const CircleBorder(),
+            child: InkWell(
+              onTap: onPressed,
+              customBorder: const CircleBorder(),
+              child: Ink(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
                 color: bgColor,
                 boxShadow: [
                   BoxShadow(
@@ -81,6 +86,7 @@ class CallActionButton extends StatelessWidget {
             ),
           ),
         ),
+      ),
         if (label.isNotEmpty) ...[
           const SizedBox(height: 8),
           Text(

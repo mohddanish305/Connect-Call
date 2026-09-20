@@ -1,0 +1,142 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isUser(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // ===============================================================
+    // USERS COLLECTION
+    // ===============================================================
+    match /users/{userId} {
+      // Any authenticated user can view contact profiles
+      allow read: if isAuthenticated();
+      // Only the user themselves can create or update their profile
+      allow create, update: if isUser(userId);
+      allow delete: if false;
+
+      // Blocked users subcollection: users can only manage their own block list; target user can check their blocked status
+      match /blockedUsers/{blockedUid} {
+        allow read: if request.auth != null
+          && (request.auth.uid == userId || request.auth.uid == blockedUid);
+
+        allow create: if request.auth != null
+          && request.auth.uid == userId
+          && blockedUid != request.auth.uid;
+
+        allow delete: if request.auth != null
+          && request.auth.uid == userId;
+
+        allow update: if false;
+      }
+    }
+
+    // ===============================================================
+    // CALLS COLLECTION (1-to-1 Audio Call Signaling)
+    // ===============================================================
+    match /calls/{callId} {
+
+      function isCallParticipant() {
+        return isAuthenticated() && (
+          request.auth.uid == resource.data.callerId ||
+          request.auth.uid == resource.data.receiverId ||
+          request.auth.uid == resource.data.calleeId
+        );
+      }
+
+      function isValidStatusTransition(oldStatus, newStatus) {
+        // Allowed state machine transitions
+        return (
+          (oldStatus == 'calling' && (newStatus in ['ringing', 'ended', 'failed'])) ||
+          (oldStatus == 'ringing' && (newStatus in ['accepted', 'rejected', 'missed', 'ended', 'failed'])) ||
+          (oldStatus == 'accepted' && (newStatus in ['connected', 'inCall', 'ended', 'failed'])) ||
+          (oldStatus == 'connected' && (newStatus in ['inCall', 'ended', 'failed', 'disconnected', 'reconnecting'])) ||
+          (oldStatus == 'inCall' && (newStatus in ['ended', 'failed', 'disconnected', 'reconnecting'])) ||
+          (oldStatus == 'reconnecting' && (newStatus in ['connected', 'inCall', 'ended', 'failed', 'disconnected'])) ||
+          (oldStatus == newStatus)
+        );
+      }
+
+      // Read access: Only participants can read or query their calls
+      allow read: if isCallParticipant();
+
+      // Create: Only the caller can create the call document
+      allow create: if isAuthenticated() &&
+        request.auth.uid == request.resource.data.callerId &&
+        (request.resource.data.status in ['calling', 'ringing']) &&
+        request.resource.data.callerId != null &&
+        (request.resource.data.receiverId != null || request.resource.data.calleeId != null) &&
+        request.resource.data.channelName != null;
+
+      // Update: Participants only, immutable core fields, valid status transitions
+      allow update: if isCallParticipant() &&
+        // Prevent altering participant IDs or Agora channel identifier
+        request.resource.data.callerId == resource.data.callerId &&
+        (request.resource.data.receiverId == resource.data.receiverId || request.resource.data.calleeId == resource.data.calleeId) &&
+        request.resource.data.channelName == resource.data.channelName &&
+        // Validate state transitions
+        isValidStatusTransition(resource.data.status, request.resource.data.status);
+
+      // Deletion is prohibited to preserve call audit integrity
+      allow delete: if false;
+    }
+
+    // ===============================================================
+    // CALL HISTORY COLLECTION
+    // ===============================================================
+    match /callHistory/{historyId} {
+      function isHistoryParticipant() {
+        return isAuthenticated() && (
+          request.auth.uid == resource.data.callerId ||
+          request.auth.uid == resource.data.receiverId
+        );
+      }
+
+      // Read: Users can only read call history records where they are a participant
+      allow read: if isHistoryParticipant();
+
+      // Create: Only a participant can create a history entry
+      allow create: if isAuthenticated() && (
+        request.auth.uid == request.resource.data.callerId ||
+        request.auth.uid == request.resource.data.receiverId
+      ) &&
+      request.resource.data.callerId != null &&
+      request.resource.data.receiverId != null &&
+      (request.resource.data.status in ['completed', 'missed', 'rejected', 'failed']);
+
+      // Update: Participants only; immutable participant IDs
+      allow update: if isHistoryParticipant() &&
+        request.resource.data.callerId == resource.data.callerId &&
+        request.resource.data.receiverId == resource.data.receiverId;
+
+      // Delete: Participant can delete their history
+      allow delete: if isHistoryParticipant();
+    }
+
+    // ===============================================================
+    // GROUP CALLS COLLECTION (3+ Participants Multi-Party Calling)
+    // ===============================================================
+    match /groupCalls/{groupId} {
+      function isGroupParticipant() {
+        return isAuthenticated() && (
+          request.auth.uid in resource.data.participantIds ||
+          request.auth.uid == resource.data.hostId
+        );
+      }
+
+      allow read: if isGroupParticipant();
+      allow create: if isAuthenticated() &&
+        request.auth.uid == request.resource.data.hostId &&
+        request.resource.data.participantIds.size() >= 2;
+      allow update: if isGroupParticipant();
+      allow delete: if false;
+    }
+  }
+}

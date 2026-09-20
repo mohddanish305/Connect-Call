@@ -19,10 +19,21 @@ class UserAvatar extends StatelessWidget {
   });
 
   String _getInitials(String fullName) {
-    final parts = fullName.trim().split(' ');
-    if (parts.isEmpty) return 'U';
-    if (parts.length == 1) return parts[0].isNotEmpty ? parts[0][0].toUpperCase() : 'U';
-    return (parts[0][0] + parts[1][0]).toUpperCase();
+    try {
+      final cleaned = fullName.trim();
+      if (cleaned.isEmpty) return 'U';
+      final parts = cleaned.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+      if (parts.isEmpty) return 'U';
+      if (parts.length == 1) {
+        return parts[0].isNotEmpty ? parts[0][0].toUpperCase() : 'U';
+      }
+      final first = parts[0].isNotEmpty ? parts[0][0].toUpperCase() : '';
+      final second = parts[1].isNotEmpty ? parts[1][0].toUpperCase() : '';
+      final combined = '$first$second';
+      return combined.isNotEmpty ? combined : 'U';
+    } catch (_) {
+      return 'U';
+    }
   }
 
   @override

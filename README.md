@@ -1,308 +1,391 @@
 # ConnectCall
 
-> **"Connect with anyone, anywhere."**
+> Real-Time 1-to-1 Audio & Video Calling Application
 
-A production-style 1-to-1 audio and video calling Flutter application engineered to meet and exceed all criteria in the **Flutter Development Intern Assignment**. ConnectCall is built using Flutter, Riverpod state management, and real-time WebRTC media streams for ultra-low latency communication.
-
----
-
-## Table of Contents
-1. [Key Features](#key-features)
-2. [Branding & Design System](#branding--design-system)
-3. [Architecture & Project Structure](#architecture--project-structure)
-4. [Technology Decisions](#technology-decisions)
-   - [Real-time Calling Engine: WebRTC](#real-time-calling-engine-webrtc)
-   - [State Management: Riverpod](#state-management-riverpod)
-   - [Backend & Persistence](#backend--persistence)
-5. [Call State Lifecycle Flow](#call-state-lifecycle-flow)
-6. [Screens Overview](#screens-overview)
-7. [Device Permissions & Error Handling](#device-permissions--error-handling)
-8. [Setup & Installation Instructions](#setup--installation-instructions)
-9. [Verification & Test Results](#verification--test-results)
-10. [Evaluation Criteria Checklist](#evaluation-criteria-checklist)
-11. [AI Tools Disclosure](#ai-tools-disclosure)
+ConnectCall is a production-grade, real-time 1-to-1 audio and video calling mobile application built with Flutter, Riverpod, Cloud Firestore, and the Agora RTC Engine. It is engineered with strict separation of concerns, defensive security architecture, responsive error handling, and cloud-ready backend token authentication.
 
 ---
 
-## Key Features
+## Assignment Overview
 
-- **Real 1-to-1 Audio Calling**:
-  - Direct peer-to-peer audio communication with hardware microphone controls.
-  - In-call mute/unmute, speakerphone routing (`Helper.setSpeakerphoneOn`), and live ticking duration timer (`mm:ss`).
-- **Real 1-to-1 Video Calling**:
-  - Full-screen remote video feed via hardware-accelerated `RTCVideoView`.
-  - Draggable, floating Picture-in-Picture (PIP) local camera preview with front/rear camera flip (`Helper.switchCamera`).
-  - Dynamic camera on/off toggling and in-call controls.
-- **Incoming Call Handling**:
-  - Full incoming call screen with pulsing avatar, caller identity, and green **Accept** & red **Decline** actions.
-  - Seamless background & foreground incoming call listener.
-- **User Directory & Live Search**:
-  - Real-time search by name, email, or phone.
-  - Online/offline presence status indicators with instant 1-tap call triggers.
-- **Persistent Call History**:
-  - Automatically records caller, callee, call type (audio/video), timestamp, duration, and missed call alerts.
-  - Direct 1-tap redial from call logs.
-- **Light & Dark Theme**:
-  - ConnectCall design system adhering strictly to the brand cheat sheet (`#075FEA`, `#00CFF3`, `#07111F`, `#F8FAFC`).
-  - Smooth theme switching with persistent user preference.
-- **Robust Permission & Error Flow**:
-  - Proactive microphone and camera permission requests with descriptive fallback dialogs and settings shortcuts.
+ConnectCall was designed and developed specifically for the **Flutter Development Intern Assignment**. The assignment requires a fully functional, real-time 1-to-1 audio and video calling mobile application (not merely a UI prototype) backed by secure signaling, granular call controls, persistent call history, robust permission handling, and server-side credential isolation.
 
 ---
 
-## Branding & Design System
+## Features
 
-ConnectCall incorporates the official brand assets:
-- **Logo Mark**: Glossy White Phone Handset + White Signal Waves on a deep radial gradient.
-- **Primary Color**: `#075FEA` (Primary Blue), `#0647C7` (Dark), `#3B82F6` (Light), `#EAF2FF` (Soft)
-- **Cyan Accents**: `#00CFF3` (Cyan), `#00A9CC` (Cyan Dark), `#E6FAFF` (Cyan Soft)
-- **Light Surface**: `#F8FAFC` (Background), `#FFFFFF` (Surface), `#F1F5F9` (Surface Secondary)
-- **Dark Surface**: `#07111F` (Dark Background), `#0D1B2A` (Dark Surface), `#13253A` (Elevated Surface)
-- **Status Indicators**: `#22C55E` (Online / Accept), `#EF4444` (End Call / Decline / Missed), `#F59E0B` (Warning)
-- **Typography**: Primary: **Manrope** (700/600), Secondary: **Inter** (400/500).
+### Mandatory Requirements
+- **Authentication**: Email and password user registration, secure login with Firebase Authentication, persistent session state across app restarts, and clean sign out.
+- **User Discovery & Profile**: Real-time searchable user directory, live presence indicators (`Online` / `Last seen`), and profile customization.
+- **1-to-1 Audio Calling**: Real-time, ultra-low latency voice communication powered by Agora RTC.
+- **1-to-1 Video Calling**: 720p HD video streaming, local camera preview picture-in-picture (PIP), and hardware-accelerated remote canvas rendering.
+- **Signaling & Incoming Calls**: Real-time Firestore signaling with incoming call alerts, pulsing visual cues, ringtone feedback, and Accept/Reject actions.
+- **Audio Controls**: Live microphone mute/unmute, earpiece/speakerphone audio routing toggle, and hang-up termination.
+- **Video Controls**: Live camera feed toggle (on/off), front/rear camera lens switching, microphone muting, and hang-up termination.
+- **Call History**: Idempotent persistence of call sessions recording participant identities, call direction (incoming/outgoing), call type (audio/video), timestamp, duration (`mm:ss`), and status badges.
+- **Permissions**: Runtime handling for Microphone and Camera via `permission_handler`, with distinct dialogs and settings shortcuts for denied and permanently denied states.
+- **Call State Lifecycle**: Strict state machine handling transitions across `Calling`, `Ringing`, `Connected`, `In Call`, `Ended`, `Rejected`, `Missed`, `Busy`, `Failed`, and `Disconnected`.
+- **Error Handling & Resilience**: Pre-flight network reachability checks, reconnection handling with countdown timer, token expiration refresh, and graceful fallback when users are offline or decline calls.
+
+### Implemented Bonus Features
+- **Push Notifications**: Firebase Cloud Messaging (FCM) incoming call payloads dispatched via backend `/api/notifications/call`.
+- **Background Incoming Calls**: High-priority notification channel (`connectcall_incoming_calls`) waking the device for incoming calls.
+- **Dark Mode**: 3-option theme switcher (`System Default`, `Light`, `Dark`) with immediate persistence.
+- **Block User**: Ability to block/unblock users with dedicated blocked users management screen and isolated Firestore security rules.
+- **Recent Contacts**: Frequently and recently contacted user list saved locally with instant redial capability.
+- **Group Calling**: Multi-party calling support (`groupCalls` Firestore collection and dynamic multi-participant canvas).
+- **Network Quality Indicators**: Live packet loss and bitrate monitoring via Agora RTC engine callbacks displaying network health in the active call UI.
 
 ---
 
-## Architecture & Project Structure
+## Tech Stack
 
-The project follows a clean, modular Flutter architecture where business logic and UI presentation are strictly separated:
+| Technology / Library | Version | Role in Architecture |
+| :--- | :--- | :--- |
+| **Flutter SDK** | `3.41.1 (channel stable)` | Cross-platform mobile client framework |
+| **Dart SDK** | `3.11.0` | Strongly-typed client programming language |
+| **flutter_riverpod** | `^2.6.1` | Reactive, testable state management |
+| **agora_rtc_engine** | `^6.6.4` | Hardware-accelerated real-time voice & video engine |
+| **firebase_core** | `^4.14.0` | Firebase client initialization and lifecycle |
+| **firebase_auth** | `^6.6.1` | User authentication and Firebase ID Token management |
+| **cloud_firestore** | `^6.9.0` | Real-time call signaling, presence, and history |
+| **firebase_messaging**| `^16.7.0` | Background incoming call push notifications |
+| **flutter_local_notifications** | `^18.0.1` | Heads-up foreground notification display |
+| **permission_handler**| `^11.4.0` | OS runtime permission management (Camera/Mic) |
+| **shared_preferences**| `^2.3.5` | Local persistent cache (theme, onboarding, call logs) |
+| **Node.js** | `v24.13.0` | Backend runtime environment |
+| **Express** | `^4.21.2` | REST API framework for secure token vending |
+| **agora-token** | `^2.0.6` | Official server-side Agora RTC token generator |
+| **firebase-admin** | `^14.4.0` | Server-side Firebase ID token verification |
+| **helmet** | `^8.0.0` | HTTP security response headers |
+| **cors** | `^2.8.5` | Centralized CORS middleware |
+
+---
+
+## Architecture
 
 ```
-lib/
-├── core/
-│   ├── config/
-│   │   └── app_config.dart          # Environment variables & STUN servers
-│   ├── constants/
-│   │   ├── app_colors.dart         # Brand palette & gradients
-│   │   ├── app_text_styles.dart    # Manrope & Inter typographic hierarchy
-│   │   ├── app_spacing.dart        # 4px-grid spacing tokens
-│   │   ├── app_radius.dart         # Border radius constants
-│   │   └── app_shadows.dart        # Elevation & frosted shadows
-│   ├── theme/
-│   │   ├── app_theme.dart          # Light and Dark ThemeData
-│   │   └── theme_provider.dart     # ThemeMode state notifier
-│   └── utils/
-│       ├── date_formatter.dart     # Call time & duration formatting
-│       └── call_duration_timer.dart# Millisecond-accurate duration ticker
-│
-├── models/
-│   ├── user_model.dart             # id, name, email, phone, photoUrl, isOnline, lastSeen
-│   ├── call_model.dart             # id, caller, callee, callType, status, startedAt, duration, direction
-│   └── call_session.dart           # Active call session & WebRTC tracks state
-│
-├── services/
-│   ├── auth_service.dart           # Authentication & session persistence
-│   ├── user_service.dart           # User directory & search operations
-│   ├── calling_service.dart        # WebRTC PeerConnection, media tracks, audio/video devices
-│   ├── call_history_service.dart   # Call log persistence and sorting
-│   └── permission_service.dart     # Microphone and camera device permissions
-│
-├── providers/
-│   ├── auth_provider.dart          # User session, login, and registration states
-│   ├── user_provider.dart          # Contacts list, query, and filtered state
-│   ├── call_provider.dart          # Active call controller, device toggles, and permissions
-│   └── call_history_provider.dart  # Call history list notifier
-│
-├── screens/
-│   ├── splash/
-│   │   └── splash_screen.dart       # Branded splash with animated logo & text
-│   ├── auth/
-│   │   ├── login_screen.dart        # Email/Phone login with quick 1-tap demo credentials
-│   │   └── register_screen.dart     # Registration with password validation
-│   ├── home/
-│   │   ├── home_screen.dart         # 4-Tab coordinator & incoming call watcher
-│   │   └── home_dashboard_tab.dart  # Online contacts, quick calling, recent calls
-│   ├── contacts/
-│   │   ├── contacts_screen.dart     # Searchable contacts list with call triggers
-│   │   └── widgets/
-│   │       ├── user_tile.dart       # Contact tile with audio & video call actions
-│   │       └── search_bar_widget.dart# Debounced search input
-│   ├── call/
-│   │   ├── audio_call_screen.dart   # Audio call UI, pulsing avatar, duration, mute, speaker, end
-│   │   ├── video_call_screen.dart   # Full-screen remote video, draggable local PIP, camera flip
-│   │   └── incoming_call_screen.dart# Pulsing incoming call alert, Accept (Green), Decline (Red)
-│   ├── history/
-│   │   └── call_history_screen.dart # Call history list, missed badges, redial action
-│   └── profile/
-│       ├── profile_screen.dart      # User details, dark mode switch, edit profile, logout
-│       └── edit_profile_dialog.dart # Display name update dialog
-│
-├── widgets/
-│   ├── common_button.dart          # Primary, secondary, and danger button styles
-│   ├── call_action_button.dart     # Circular calling controls (mute, camera, speaker, switch, end)
-│   ├── user_avatar.dart            # User avatar with online/offline badge
-│   ├── status_badge.dart           # Online, Offline, Missed pill badges
-│   └── empty_state_widget.dart     # Empty contacts, empty calls, and offline error states
-│
-└── main.dart                       # App entry point, ProviderScope, Theme observer
+┌─────────────────────────────────────────────────────────────┐
+│                    Flutter Client Application               │
+│                                                             │
+│   Screens (Auth, Home, Contacts, AudioCall, VideoCall)      │
+│                              ▲                              │
+│   Riverpod State Notifiers (Auth, CallController, History)   │
+│                              ▲                              │
+│   Services (CallingService, CallSignaling, Permission)      │
+└──────────────┬───────────────────────────────┬──────────────┘
+               │                               │
+        Bearer ID Token                 Firestore Listeners
+      Agora Token Request             Signaling & Presence
+               ▼                               ▼
+┌──────────────────────────────┐  ┌───────────────────────────┐
+│     Node.js / Express        │  │     Google Cloud /        │
+│       Backend Server         │  │     Firebase Backend      │
+│                              │  │                           │
+│ • Firebase Token Verify      │  │ • Firebase Authentication │
+│ • Input & UID Validation     │  │ • Cloud Firestore DB      │
+│ • Secure Agora RTC Token     │  │ • Strict Security Rules v2│
+│   Builder (Cert in .env)     │  │                           │
+└──────────────┬───────────────┘  └───────────────────────────┘
+               │
+          Channel Token
+               ▼
+┌──────────────────────────────┐
+│       Agora RTC Engine       │
+│ • Low-Latency Audio Stream   │
+│ • 720p HD Video & Preview    │
+│ • Adaptive Bitrate & Quality │
+└──────────────────────────────┘
 ```
+
+### Layer Responsibilities
+1. **UI Layer (`lib/screens/`, `lib/widgets/`)**: Declarative Flutter widgets reflecting state reactively. Strictly decoupled from network protocols.
+2. **State Management (`lib/providers/`)**: Riverpod Notifiers encapsulating business logic, session models, and reactive streams.
+3. **Service Layer (`lib/services/`, `lib/core/services/`)**: Single-responsibility adapters managing Agora RTC engine lifecycle, Firestore signaling, runtime permissions, and HTTP token requests.
+4. **Backend Layer (`backend/`)**: Authoritative Node.js service verifying caller identity via Firebase Admin and generating short-lived Agora RTC tokens using the private App Certificate.
+5. **Real-Time Media Layer (Agora RTC Engine)**: Native media engine handling echo cancellation, noise suppression, adaptive video encoding, and peer-to-peer/relay data delivery.
 
 ---
 
-## Technology Decisions
-
-### Real-time Calling Engine: WebRTC (`flutter_webrtc`)
-1. **Industry Standard**: WebRTC is the open-standard real-time communication framework utilized by Google Meet, Discord, and WhatsApp.
-2. **True Native Media Pipelines**: Directly accesses Android camera (`Camera2`) and microphone (`AudioRecord`) platform channels.
-3. **No Vendor Lock-in or Expiring Keys**: Proprietary SDKs (such as Agora or ZEGOCLOUD) enforce proprietary dashboard accounts with expiring trial tokens. WebRTC coupled with public Google STUN servers (`stun:stun.l.google.com:19302`) operates out of the box anywhere at zero cost.
-4. **Hardware Acceleration**: Built-in hardware decoding/rendering via `RTCVideoView` ensuring 60 FPS smooth video.
-
-### State Management: Riverpod (`flutter_riverpod`)
-- Compile-safe dependency injection without `BuildContext` coupling.
-- Auto-disposing providers for search queries and filtered contact streams.
-- `StateNotifier` for predictable, unidirectional data flows across authentication, calling sessions, and history logging.
-
-### Backend & Persistence
-- **Session & Local Persistence**: Backed by `shared_preferences` with JSON serialization.
-- **Cloud Readiness**: `AuthService` and `UserService` are abstracted to seamlessly connect to Firebase Authentication and Cloud Firestore via `AppConfig.backendMode`.
-
----
-
-## Call State Lifecycle Flow
-
-ConnectCall strictly adheres to the calling state machine requested in the PDF:
+## Project Structure
 
 ```
-[Idle]
-   │
-   ▼
-[Calling] ── (Target device alerted) ──► [Ringing]
-   │                                        │
-   │ (User Declines / Timeout)              │ (User Accepts)
-   ▼                                        ▼
-[Rejected / Missed]                     [Connected]
-                                            │
-                                            ▼
-                                        [In Call] ◄──► [Mute / Speaker / Camera Switch]
-                                            │
-                                            ▼
-                                         [Ended]
-                                            │
-                                            ▼
-                                    [Logged to History]
+ConnectCall/
+├── android/                         # Native Android host project & Gradle configuration
+│   ├── app/
+│   │   ├── google-services.json    # Firebase Android client configuration
+│   │   ├── build.gradle.kts        # Android app build specification
+│   │   └── src/main/AndroidManifest.xml # Permissions & intents
+│   └── build.gradle.kts            # Project-level Gradle build file
+├── ios/                             # Native iOS configuration (Info.plist, entitlements)
+├── assets/                          # App brand logos, illustrations, and images
+├── backend/                         # Node.js Express Agora Token & Notification server
+│   ├── src/
+│   │   ├── config/
+│   │   │   └── env.js              # Environment variable validation
+│   │   ├── controllers/
+│   │   │   ├── agora_controller.js # POST /api/agora/token handler
+│   │   │   └── health_controller.js# GET /health handler
+│   │   ├── middleware/
+│   │   │   ├── auth_middleware.js  # Firebase ID Token verification
+│   │   │   ├── cors_middleware.js  # Mobile-appropriate CORS
+│   │   │   └── error_handler.js    # Global error response formatting
+│   │   ├── routes/                 # Express route definitions
+│   │   ├── services/
+│   │   │   └── agora_token_service.js # RtcTokenBuilder token generator
+│   │   └── server.js               # Application entry point & graceful shutdown
+│   ├── tests/
+│   │   └── agora_token.test.js     # 11-step automated backend test suite
+│   ├── .env.example                # Safe environment variable template
+│   └── package.json                # Node dependencies & scripts
+├── docs/                            # Architecture & verification checklists
+├── lib/
+│   ├── core/
+│   │   ├── config/
+│   │   │   └── app_config.dart     # Decoupled dev/prod backend endpoints
+│   │   ├── constants/              # Spacing, colors, radius, and typography
+│   │   ├── services/               # Agora engine, token client, and network
+│   │   ├── theme/                  # Light and Dark ThemeData definitions
+│   │   └── utils/                  # Date and duration formatters
+│   ├── models/                      # User, Call, and CallHistory data models
+│   ├── providers/                   # Riverpod StateNotifiers and StreamProviders
+│   ├── screens/                     # Auth, Call, Contacts, History, Profile
+│   ├── services/                    # Signaling, permissions, block, recent contacts
+│   ├── widgets/                     # Reusable buttons, avatars, badges
+│   ├── firebase_options.dart        # FlutterFire client configuration
+│   └── main.dart                    # Client startup & ProviderScope bootstrap
+├── test/
+│   └── widget_test.dart             # 22-step Flutter unit & widget test suite
+├── .gitignore                       # Strict repository credential protections
+├── firestore.rules                  # Strict Cloud Firestore Security Rules v2
+└── pubspec.yaml                     # Flutter package dependencies
 ```
 
 ---
 
-## Screens Overview
+## Calling Architecture & Lifecycle
 
-1. **Splash Screen**:
-   - Branded gradient background.
-   - Smooth animated fade/scale for the glossy ConnectCall logo.
-   - Flutter animated "ConnectCall" typography (fade & slide).
-   - Dynamic session checking and navigation to Login or Home.
-2. **Login / Register Screens**:
-   - Full input validation (email format, password length, password confirmation).
-   - 1-tap quick demo login chips (Sarah Johnson, John Smith, Alex Wilson) for instant testing during technical review.
-3. **Home Screen**:
-   - 4-tab bottom navigation (`Home`, `Contacts`, `Calls`, `Profile`).
-   - Profile greeting with online status badge.
-   - "Online Now" horizontal scrollable avatar bar with 1-tap call dialing.
-   - "Recent Calls" quick access feed.
-   - "Test Incoming Call" trigger button for easy single-device review.
-4. **Contacts Screen**:
-   - Live debounced search bar.
-   - Clean contact list showing user avatar, name, online badge, audio call button, and video call button.
-5. **Audio Calling Screen**:
-   - Caller name and pulsing avatar with glowing halo.
-   - Live duration timer (`02:35`).
-   - Controls: Mute/Unmute microphone, Speakerphone On/Off, and End Call (Red).
-6. **Video Calling Screen**:
-   - Full-screen hardware remote video feed.
-   - Draggable floating local camera PIP preview with front camera mirroring.
-   - Controls: Microphone Mute, Camera On/Off, Switch Front/Rear Camera, and End Call.
-7. **Incoming Call Screen**:
-   - Visual call type distinction (`Incoming Audio Call` / `Incoming Video Call`).
-   - Green Accept and Red Decline action buttons.
-8. **Call History Screen**:
-   - Records all past calls with caller/callee details, type, time, duration, and missed call indicator.
-   - 1-tap redial and clear history action.
-9. **User Profile Screen**:
-   - User avatar, name, email, and presence badge.
-   - Light / Dark theme switch.
-   - Edit display name dialog.
-   - Sign out with confirmation dialog.
+```
+Caller                               Callee                     Backend Server
+  │                                    │                              │
+  ├─── 1. Create Call Document ───────►│ (Firestore: 'ringing')       │
+  │    (status: 'calling')             │                              │
+  │                                    ├─── 2. Display Incoming Screen│
+  │                                    │    (Ringtone & Vibration)    │
+  │                                    │                              │
+  │                                    ├─── 3. Callee Taps Accept ────┤
+  │                                    │    (Firestore: 'accepted')   │
+  │                                    │                              │
+  ├─── 4. Request Agora RTC Token ─────┼─────────────────────────────►│
+  │    (Auth: Bearer Firebase-Token)   │                              │ (Verify Token)
+  │◄── 5. Return Temporary Token ──────┼──────────────────────────────┤
+  │                                    │                              │
+  │                                    ├─── 6. Request Agora Token ──►│
+  │                                    │◄── 7. Return Agora Token ────┤
+  │                                    │                              │
+  ├─── 8. Join Agora Channel ──────────┤                              │
+  │    (channelName, numeric UID)      ├─── 9. Join Agora Channel ────┤
+  │                                    │                              │
+  │◄═══════════════════════════════════╪═════════════════════════════►│
+  │       10. Real-Time Audio / 720p HD Video Communication (Agora)   │
+  │◄═══════════════════════════════════╪═════════════════════════════►│
+  │                                    │                              │
+  ├─── 11. Caller/Callee Ends Call ───►│ (Firestore: 'ended')         │
+  │                                    ├─── 12. Teardown RTC Engine   │
+  └─── 13. Idempotent History Saved ───┴─── 14. Return to Dashboard   │
+```
 
 ---
 
-## Device Permissions & Error Handling
+## Backend Service
 
-- **Proactive Requests**: Microphone and camera permissions are requested only when initiating or accepting calls.
-- **Graceful Error Recovery**: If permissions are denied, an informative user-friendly message is presented rather than crashing.
-- **Empty & Offline States**: Includes dedicated empty screens for "No contacts yet", "No calls yet", and "You're offline".
+The backend is built with Node.js and Express to safeguard the Agora App Certificate and issue cryptographically signed, short-lived Agora RTC tokens.
+
+- **`GET /health`**: Health status endpoint returning service status.
+- **`POST /api/agora/token`**: Protected endpoint requiring a Firebase ID Token in `Authorization: Bearer <token>`.
+- **`POST /api/notifications/call`**: Optional push notification trigger for waking sleeping callee devices via FCM.
 
 ---
 
-## Setup & Installation Instructions
+## Environment Variables
 
-### Prerequisites
-- Flutter SDK 3.41.1+ (or Flutter 3.24+)
-- Dart SDK 3.7+
-- Android SDK 34+ / JDK 17+
+### Backend Configuration (`backend/.env.example`)
+Configure these environment variables in your deployment environment or in `backend/.env` for local testing:
 
-### Run Locally
+```env
+PORT=3000
+NODE_ENV=development
+
+# Agora RTC Credentials (App Certificate is strictly server-side)
+AGORA_APP_ID=
+AGORA_APP_CERTIFICATE=
+AGORA_TOKEN_EXPIRY_SECONDS=3600
+
+# Firebase Admin Configuration (For cloud platforms like Render)
+FIREBASE_PROJECT_ID=connectcall-01
+FIREBASE_CLIENT_EMAIL=
+FIREBASE_PRIVATE_KEY=
+
+# Local service account file path (optional)
+FIREBASE_SERVICE_ACCOUNT_PATH=
+```
+
+> [!IMPORTANT]
+> Never commit real secret keys (`AGORA_APP_CERTIFICATE`, `FIREBASE_PRIVATE_KEY`) to version control. Production secrets must be configured via the deployment platform's environment variables dashboard.
+
+---
+
+## Local Setup & Running Instructions
+
+### 1. Prerequisites
+- **Flutter SDK**: `3.41.1` or compatible stable version
+- **Dart SDK**: `^3.11.0`
+- **Node.js**: `v20.x` or `v24.x`
+- **Android Studio / Android SDK**: Platform 34+, Build Tools, NDK
+
+### 2. Backend Setup
 ```bash
-# 1. Clone repository & enter directory
-cd ConnectCall
+cd backend
+npm install
 
-# 2. Install dependencies
+# Create local environment file from template
+cp .env.example .env
+# Edit backend/.env with your AGORA_APP_ID and AGORA_APP_CERTIFICATE
+
+# Start local server
+npm start
+```
+Verify the server is running by opening: `http://localhost:3000/health`
+
+### 3. Flutter Client Setup
+```bash
+# Return to repository root
+cd ..
+
+# Fetch Flutter dependencies
 flutter pub get
 
-# 3. Analyze code quality (0 issues guaranteed)
-flutter analyze
-
-# 4. Run automated test suite
-flutter test
-
-# 5. Run on Android device or emulator
-flutter run
+# Run on an Android emulator or connected device
+# For local physical devices, pass your host computer's LAN IP:
+flutter run --dart-define=BACKEND_BASE_URL=http://<YOUR_LOCAL_IP>:3000
 ```
 
-### Build Android APK
+---
+
+## Android Permissions
+
+The application requests the following permissions configured in `android/app/src/main/AndroidManifest.xml`:
+- `android.permission.RECORD_AUDIO`: Voice capture for audio and video calls.
+- `android.permission.CAMERA`: Video capture for video calling.
+- `android.permission.INTERNET`: Firebase signaling and Agora RTC media streaming.
+- `android.permission.ACCESS_NETWORK_STATE`: Pre-flight connectivity checks.
+- `android.permission.POST_NOTIFICATIONS`: Foreground service and incoming call alerts on Android 13+.
+
+---
+
+## Firestore Security & Data Architecture
+
+The application requires the following Firestore collections, protected by `firestore.rules`:
+- **`users/{userId}`**: User profile data (name, email, presence, last seen). Read-accessible to authenticated users; write-restricted to the document owner.
+- **`users/{userId}/blockedUsers/{blockedUid}`**: Block list entries restricted strictly to the user and target blocked peer.
+- **`calls/{callId}`**: Active 1-to-1 call signaling documents. Readable and modifiable solely by the designated `callerId` and `receiverId` with enforced state transitions.
+- **`callHistory/{historyId}`**: Permanent call logs accessible and writable solely by call participants.
+- **`groupCalls/{groupId}`**: Multi-party group call state accessible only by group participants and host.
+
+---
+
+## Security Architecture
+
+1. **Zero Secret Leakage**: The `AGORA_APP_CERTIFICATE` and Firebase Admin private keys reside exclusively on the server and are never packaged into the Flutter client binary or release APK.
+2. **Short-Lived RTC Tokens**: Tokens expire automatically after 3600 seconds (configurable) and grant access strictly to a specific channel and numeric UID.
+3. **Identity Verification**: Every token request must present a valid, cryptographically verified Firebase ID Token.
+4. **Client Config Distinction**: `google-services.json` and `firebase_options.dart` contain only public client identifiers, completely separate from privileged Firebase Admin service account keys.
+5. **No Secret Logging**: The server explicitly filters out all tokens, authorization headers, and certificate values from server logs.
+
+---
+
+## Cloud Deployment (Cloudflare Workers & Edge Network)
+
+The backend is prepared for deployment on **Cloudflare Workers** with global edge replication:
+- **Production URL**: `https://<YOUR_WORKER_NAME>.<YOUR_SUBDOMAIN>.workers.dev`
+- **Health Check**: `GET /health`
+- **Token Endpoint**: `POST /api/agora/token`
+- **Configuration**:
+  - `wrangler.jsonc` with `nodejs_compat` enabled
+  - Serverless architecture with sub-15ms cold starts
+  - Secure Cloudflare encrypted secrets for `AGORA_APP_ID` and `AGORA_APP_CERTIFICATE`
+  - Zero server maintenance, DDoS mitigation, and global auto-scaling
+
+### Deploying Your Own Worker
 ```bash
-flutter build apk --debug
-# or for release:
+cd backend-worker
+npm install
+
+# Configure secrets in Cloudflare encrypted storage
+npx wrangler secret put AGORA_APP_ID
+npx wrangler secret put AGORA_APP_CERTIFICATE
+
+# Deploy to Cloudflare
+npm run deploy
+```
+
+---
+
+## Alternative Cloud Deployment (Render Web Service)
+
+For traditional server environments, the Node.js Express backend in `backend/` is also deployment-ready for [Render](https://render.com):
+- **Root Directory**: `backend`
+- **Environment**: `Node`
+- **Build Command**: `npm install`
+- **Start Command**: `npm start`
+- **Health Check Path**: `/health`
+- **Environment Variables**:
+  - `PORT`: `10000` (set automatically by Render)
+  - `NODE_ENV`: `production`
+  - `AGORA_APP_ID`: `<YOUR_AGORA_APP_ID>`
+  - `AGORA_APP_CERTIFICATE`: `<YOUR_AGORA_APP_CERTIFICATE>`
+  - `FIREBASE_PROJECT_ID`: `connectcall-01`
+  - `FIREBASE_CLIENT_EMAIL`: `<YOUR_FIREBASE_SERVICE_ACCOUNT_EMAIL>`
+  - `FIREBASE_PRIVATE_KEY`: `<YOUR_FIREBASE_SERVICE_ACCOUNT_PRIVATE_KEY>`
+
+
+---
+
+## Building Release APK
+
+```bash
 flutter build apk --release
 ```
-The compiled APK will be located at:
-`build/app/outputs/flutter-apk/app-debug.apk` (or `app-release.apk`).
+The resulting release binary will be generated at:
+`build/app/outputs/flutter-apk/app-release.apk`
 
 ---
 
-## Verification & Test Results
+## Test Verification Matrix
 
-- **Analyzer**: `flutter analyze` passes with **0 issues** (clean code, 0 warnings, 0 errors).
-- **Unit Tests**: `flutter test` passes **100%** across:
-  - `DateFormatter` (duration formatting `mm:ss` & relative timestamps)
-  - `UserModel` (serialization, copyWith, null safety)
-  - `CallModel` (call types, statuses, directions)
-  - `CallSession` (runtime media track states)
-
----
-
-## Evaluation Criteria Checklist
-
-| Requirement | Status | Implementation |
-|---|:---:|---|
-| Application launches successfully | ✅ | Clean launch, verified in tests & analyzer |
-| User can log in & register | ✅ | `LoginScreen` & `RegisterScreen` with validation & session storage |
-| Users / contacts are displayed | ✅ | `ContactsScreen` with online badges & real-time search |
-| User can initiate an audio call | ✅ | `AudioCallScreen` with WebRTC audio streams & live timer |
-| Another user can receive call | ✅ | `IncomingCallScreen` with caller identity & audio/video indicator |
-| Call can be accepted / rejected | ✅ | Green Accept & Red Decline actions with session routing |
-| Audio can be muted / unmuted | ✅ | Hardware microphone track toggle via `toggleMicrophone()` |
-| Speakerphone can be toggled | ✅ | Platform audio route toggle via `Helper.setSpeakerphoneOn()` |
-| User can initiate a video call | ✅ | `VideoCallScreen` with remote video & draggable PIP local preview |
-| Camera can be enabled / disabled | ✅ | Hardware camera track toggle via `toggleCamera()` |
-| Front / rear camera can be switched | ✅ | Hardware camera flip via `Helper.switchCamera()` |
-| Call can be ended | ✅ | Hardware tracks disposed, connection closed, logged to history |
-| Call history is displayed | ✅ | `CallHistoryScreen` with call type, duration, timestamp & redial |
-| Device permissions are handled | ✅ | `PermissionService` handles mic & camera permissions |
-| Basic errors are handled | ✅ | Dedicated offline & error dialogs without app crashes |
-| Dark mode supported | ✅ | Custom dark palette matching brand specifications |
-| Clean architecture & Riverpod | ✅ | Modular services, providers, models, constants, and widgets |
+| Component | Test Suite | Tests Executed | Status |
+| :--- | :--- | :--- | :--- |
+| **Flutter Static Analysis** | `flutter analyze` | Entire Flutter codebase | **PASS** (0 issues) |
+| **Flutter Unit & Widgets** | `flutter test` (`test/widget_test.dart`) | 22 tests | **PASS** (22/22) |
+| **Cloudflare Worker Suite** | `npm test` (`backend-worker/tests/worker.test.ts`) | 9 tests | **PASS** (9/9) |
+| **Node Backend Integration** | `npm test` (`backend/tests/agora_token.test.js`) | 11 tests | **PASS** (11/11) |
+| **Secret Scan** | Automated repository audit | Full repo grep | **PASS** (0 committed secrets) |
+| **Git Credential Ignore** | `git check-ignore backend/.env backend-worker/.dev.vars` | Git index check | **PASS** (Ignored) |
 
 ---
 
-## AI Tools Disclosure
-In compliance with the assignment submission requirements, **Google Gemini 3.8 Flash** via Antigravity Agentic Pair Programming was utilized to assist with architectural design, code generation, and test verification. All generated code has been fully reviewed, validated, and tested.
+## Known Limitations
+
+1. **Agora Token Connectivity**: Real-time media exchange requires an active internet connection to the token server and Agora SD-RTN infrastructure.
+2. **Background Wake-up**: Background call notifications depend on Google Play Services and OEM battery optimization policies.
+3. **Hardware Emulation**: Testing video camera feed and microphone recording is best evaluated on physical hardware rather than headless virtual devices.
+
+---
+
+## AI-Assisted Development Disclosure
+
+In accordance with internship evaluation guidelines, the development of ConnectCall utilized:
+- **ChatGPT**: Assisted with preliminary architectural drafting, protocol planning, and test scenario design.
+- **Antigravity IDE**: Assisted with codebase navigation, refactoring, test execution, and security audit verification.
+
+All generated code, state machines, Agora RTC integrations, and security rules were manually reviewed, tested, and hardened by the developer.

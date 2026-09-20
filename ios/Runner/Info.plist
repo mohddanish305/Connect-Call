@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>ConnectCall requires access to your camera to enable video calling.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>ConnectCall requires access to your microphone to enable audio and video calling.</string>
 </dict>
 </plist>

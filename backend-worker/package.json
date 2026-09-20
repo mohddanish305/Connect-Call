@@ -1,0 +1,31 @@
+{
+  "name": "connectcall-backend-worker",
+  "version": "1.0.0",
+  "description": "ConnectCall Cloudflare Worker Backend for Agora RTC Token and Firebase Auth Verification",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "connectcall",
+    "cloudflare-workers",
+    "agora",
+    "firebase"
+  ],
+  "author": "ConnectCall",
+  "license": "ISC",
+  "dependencies": {
+    "agora-token": "^2.0.6",
+    "hono": "^4.7.2",
+    "jose": "^6.0.8"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260920.1",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.7",
+    "wrangler": "^4.135.0"
+  }
+}

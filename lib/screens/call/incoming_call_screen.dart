@@ -10,6 +10,8 @@ import '../../widgets/user_avatar.dart';
 import 'audio_call_screen.dart';
 import 'video_call_screen.dart';
 
+import '../../core/services/ringtone_service.dart';
+
 class IncomingCallScreen extends ConsumerStatefulWidget {
   const IncomingCallScreen({super.key});
 
@@ -21,10 +23,16 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _rippleController;
   late Animation<double> _rippleAnimation;
+  final RingtoneService _ringtoneService = RingtoneService();
+  bool _isAccepting = false;
 
   @override
   void initState() {
     super.initState();
+    final call = ref.read(callControllerProvider).call;
+    debugPrint('[CALL FLOW] callId=${call?.id} role=receiver step=INCOMING_RECEIVED timestamp=${DateTime.now().toIso8601String()}');
+    debugPrint('[INCOMING TRACE] 03 ringtone START');
+    _ringtoneService.startRingtone();
     _rippleController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1400),
@@ -37,27 +45,65 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen>
 
   @override
   void dispose() {
+    _ringtoneService.stopRingtone();
     _rippleController.dispose();
     super.dispose();
   }
 
   Future<void> _handleAccept() async {
+    if (_isAccepting) return;
+    _isAccepting = true;
+
     final session = ref.read(callControllerProvider);
     final call = session.call;
-    await ref.read(callControllerProvider.notifier).acceptCall();
+    debugPrint('[CALL FLOW] callId=${call?.id} role=receiver step=ACCEPT_PRESSED timestamp=${DateTime.now().toIso8601String()}');
+    debugPrint('[ACCEPT DEBUG] 01 accept pressed');
+    await _ringtoneService.stopRingtone();
+    debugPrint('[CALL FLOW] callId=${call?.id} role=receiver step=RING_TIMEOUT_CANCELLED timestamp=${DateTime.now().toIso8601String()}');
+    debugPrint('[ACCEPT DEBUG] 02 call loaded (callId: ${call?.id})');
+    debugPrint('[ACCEPT DEBUG] 03 current call status=${session.status.name}');
 
-    if (mounted && call != null) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => call.callType == CallType.video
-              ? const VideoCallScreen()
-              : const AudioCallScreen(),
+    final success = await ref.read(callControllerProvider.notifier).acceptCall();
+
+    if (!mounted) return;
+
+    if (!success) {
+      _isAccepting = false;
+      final currentSession = ref.read(callControllerProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(currentSession.errorMessage ?? 'This call is no longer available.'),
+          backgroundColor: AppColors.error,
+          duration: const Duration(seconds: 3),
+          action: (currentSession.errorMessage?.contains('Settings') ?? false)
+              ? SnackBarAction(
+                  label: 'Settings',
+                  textColor: Colors.white,
+                  onPressed: () => ref.read(permissionServiceProvider).openAppSettings(),
+                )
+              : null,
         ),
       );
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+      return;
     }
+
+    debugPrint('[CALL FLOW] callId=${call?.id} role=receiver step=STATUS_UPDATE_ACCEPTED timestamp=${DateTime.now().toIso8601String()}');
+
+    final isVideo = ref.read(callControllerProvider).call?.callType == CallType.video;
+    debugPrint('[ACCEPT DEBUG] navigation to CallScreen START');
+    await Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => isVideo ? const VideoCallScreen() : const AudioCallScreen(),
+      ),
+    );
+    debugPrint('[ACCEPT DEBUG] navigation to CallScreen END');
   }
 
   Future<void> _handleDecline() async {
+    await _ringtoneService.stopRingtone();
     await ref.read(callControllerProvider.notifier).rejectCall();
     if (mounted && Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
@@ -68,6 +114,28 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen>
   Widget build(BuildContext context) {
     final session = ref.watch(callControllerProvider);
     final call = session.call;
+
+    // Listen for call cancellation by caller before acceptance
+    ref.listen(callControllerProvider, (previous, next) {
+      if (_isAccepting) return; // Don't interrupt in-flight acceptance navigation
+      if (next.status == CallStatus.ended ||
+          next.status == CallStatus.missed ||
+          next.status == CallStatus.rejected ||
+          next.status == CallStatus.failed) {
+        _ringtoneService.stopRingtone();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Call ended'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+          if (Navigator.of(context).canPop()) {
+            Navigator.of(context).pop();
+          }
+        }
+      }
+    });
 
     final isVideo = call?.callType == CallType.video;
     final callerName = call?.callerName ?? 'Unknown Caller';
@@ -165,6 +233,7 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen>
                     CallActionButton(
                       icon: Icons.call_end_rounded,
                       label: 'Decline',
+                      semanticLabel: 'Reject call',
                       type: CallButtonType.endCall,
                       size: 64,
                       onPressed: _handleDecline,
@@ -174,6 +243,7 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen>
                     CallActionButton(
                       icon: isVideo ? Icons.videocam_rounded : Icons.phone_rounded,
                       label: 'Accept',
+                      semanticLabel: 'Accept call',
                       type: CallButtonType.acceptCall,
                       size: 64,
                       onPressed: _handleAccept,

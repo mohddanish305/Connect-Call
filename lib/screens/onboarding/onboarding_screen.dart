@@ -141,18 +141,22 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                         ],
                       ),
 
-                      // Skip Button
-                      TextButton(
-                        onPressed: _completeOnboarding,
-                        style: TextButton.styleFrom(
-                          minimumSize: const Size(44, 44),
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                        ),
-                        child: Text(
-                          'Skip',
-                          style: AppTextStyles.bodyMedium(
-                            color: isDark ? AppColors.darkMutedText : AppColors.secondaryText,
-                          ).copyWith(fontSize: 14),
+                      // Skip Button (Visible on screens 1 and 2, hidden on screen 3)
+                      AnimatedOpacity(
+                        opacity: isLastPage ? 0.0 : 1.0,
+                        duration: const Duration(milliseconds: 200),
+                        child: TextButton(
+                          onPressed: isLastPage ? null : _completeOnboarding,
+                          style: TextButton.styleFrom(
+                            minimumSize: const Size(44, 44),
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                          ),
+                          child: Text(
+                            'Skip',
+                            style: AppTextStyles.bodyMedium(
+                              color: isDark ? AppColors.darkMutedText : AppColors.secondaryText,
+                            ).copyWith(fontSize: 14),
+                          ),
                         ),
                       ),
                     ],

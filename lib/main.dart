@@ -1,12 +1,25 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_provider.dart';
+import 'firebase_options.dart';
 import 'screens/splash/splash_screen.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    // Initialize push notifications and background message handlers
+    await NotificationService().initialize();
+  } catch (e) {
+    debugPrint('Firebase initialization notice: $e');
+  }
 
   // Set immersive status bar overlay
   SystemChrome.setSystemUIOverlayStyle(
@@ -32,6 +45,7 @@ class ConnectCallApp extends ConsumerWidget {
 
     return MaterialApp(
       title: 'ConnectCall',
+      navigatorKey: NotificationService.navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,

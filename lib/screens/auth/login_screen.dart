@@ -21,6 +21,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
 
+  bool _isNavigating = false;
+
   @override
   void dispose() {
     _emailPhoneController.dispose();
@@ -29,24 +31,41 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
+    if (_isNavigating || ref.read(authNotifierProvider).isLoading) return;
     if (!_formKey.currentState!.validate()) return;
 
+    FocusScope.of(context).unfocus();
+
     final success = await ref.read(authNotifierProvider.notifier).signIn(
-          emailOrPhone: _emailPhoneController.text,
+          emailOrPhone: _emailPhoneController.text.trim(),
           password: _passwordController.text,
         );
 
-    if (success && mounted) {
-      Navigator.of(context).pushReplacement(
+    if (success && mounted && !_isNavigating) {
+      _isNavigating = true;
+      Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const HomeScreen()),
+        (route) => false,
       );
     }
   }
 
-  void _quickFill(String email, String password) {
-    _emailPhoneController.text = email;
-    _passwordController.text = password;
+  Future<void> _handleGoogleLogin() async {
+    if (_isNavigating || ref.read(authNotifierProvider).isLoading) return;
+
+    FocusScope.of(context).unfocus();
+
+    final success = await ref.read(authNotifierProvider.notifier).signInWithGoogle();
+
+    if (success && mounted && !_isNavigating) {
+      _isNavigating = true;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+        (route) => false,
+      );
+    }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -157,14 +176,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _emailPhoneController,
+                    enabled: !authState.isLoading,
                     keyboardType: TextInputType.emailAddress,
                     decoration: const InputDecoration(
-                      hintText: 'e.g. sarah.johnson@connectcall.io',
+                      hintText: 'Enter your email address',
                       prefixIcon: Icon(Icons.person_outline_rounded, size: 20),
                     ),
                     validator: (val) {
                       if (val == null || val.trim().isEmpty) {
-                        return 'Please enter your email or phone';
+                        return 'Please enter a valid email address.';
+                      }
+                      if (val.contains('@') && (!val.contains('.') || val.length < 5)) {
+                        return 'Please enter a valid email address.';
                       }
                       return null;
                     },
@@ -182,6 +205,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _passwordController,
+                    enabled: !authState.isLoading,
                     obscureText: _obscurePassword,
                     decoration: InputDecoration(
                       hintText: 'Enter your password',
@@ -193,19 +217,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               : Icons.visibility_outlined,
                           size: 20,
                         ),
-                        onPressed: () {
-                          setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          });
-                        },
+                        onPressed: authState.isLoading
+                            ? null
+                            : () {
+                                setState(() {
+                                  _obscurePassword = !_obscurePassword;
+                                });
+                              },
                       ),
                     ),
                     validator: (val) {
                       if (val == null || val.isEmpty) {
-                        return 'Please enter your password';
+                        return 'Please enter your password.';
                       }
                       if (val.length < 6) {
-                        return 'Password must be at least 6 characters';
+                        return 'Password must be at least 6 characters.';
                       }
                       return null;
                     },
@@ -219,8 +245,68 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     isLoading: authState.isLoading,
                     onPressed: _handleLogin,
                   ),
+                  const SizedBox(height: AppSpacing.lg),
+
+                  // Divider
+                  Row(
+                    children: [
+                      const Expanded(child: Divider()),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          'OR',
+                          style: AppTextStyles.caption(
+                            color: isDark ? AppColors.darkMutedText : AppColors.secondaryText,
+                          ),
+                        ),
+                      ),
+                      const Expanded(child: Divider()),
+                    ],
+                  ),
 
                   const SizedBox(height: AppSpacing.lg),
+
+                  // Google Sign-In Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: OutlinedButton(
+                      onPressed: authState.isLoading ? null : _handleGoogleLogin,
+                      style: OutlinedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        side: BorderSide(
+                          color: isDark ? AppColors.darkBorder : AppColors.border,
+                        ),
+                        foregroundColor: isDark ? AppColors.darkPrimaryText : AppColors.primaryText,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // Using a generic G icon or text, since we don't have a google logo asset guaranteed
+                          const Text(
+                            'G',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue,
+                              fontSize: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Text(
+                            'Sign in with Google',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: AppSpacing.xxl),
 
                   // Create Account Navigation
                   Center(
@@ -248,64 +334,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: AppSpacing.xxxl),
-
-                  // Quick Demo Accounts for fast testing
-                  Container(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    decoration: BoxDecoration(
-                      color: isDark ? AppColors.darkElevatedSurface : AppColors.surfaceSecondary,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: isDark ? AppColors.darkBorder : AppColors.border,
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Quick Demo Accounts (1-Tap Fill):',
-                          style: AppTextStyles.caption(
-                            color: isDark ? AppColors.darkMutedText : AppColors.secondaryText,
-                          ).copyWith(fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 6,
-                          children: [
-                            ActionChip(
-                              avatar: const CircleAvatar(
-                                radius: 10,
-                                backgroundColor: AppColors.primaryBlue,
-                                child: Text('S', style: TextStyle(fontSize: 10, color: Colors.white)),
-                              ),
-                              label: const Text('Sarah Johnson'),
-                              onPressed: () => _quickFill('sarah.johnson@connectcall.io', 'password123'),
-                            ),
-                            ActionChip(
-                              avatar: const CircleAvatar(
-                                radius: 10,
-                                backgroundColor: AppColors.cyanDark,
-                                child: Text('J', style: TextStyle(fontSize: 10, color: Colors.white)),
-                              ),
-                              label: const Text('John Smith'),
-                              onPressed: () => _quickFill('john.smith@connectcall.io', 'password123'),
-                            ),
-                            ActionChip(
-                              avatar: const CircleAvatar(
-                                radius: 10,
-                                backgroundColor: AppColors.primaryBlueLight,
-                                child: Text('A', style: TextStyle(fontSize: 10, color: Colors.white)),
-                              ),
-                              label: const Text('Alex Wilson'),
-                              onPressed: () => _quickFill('alex.wilson@connectcall.io', 'password123'),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
                 ],
               ),
             ),

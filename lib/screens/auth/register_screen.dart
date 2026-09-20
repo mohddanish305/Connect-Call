@@ -24,6 +24,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
 
+  bool _isNavigating = false;
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -34,16 +36,20 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   Future<void> _handleRegister() async {
+    if (_isNavigating || ref.read(authNotifierProvider).isLoading) return;
     if (!_formKey.currentState!.validate()) return;
 
+    FocusScope.of(context).unfocus();
+
     final success = await ref.read(authNotifierProvider.notifier).signUp(
-          name: _nameController.text,
-          email: _emailController.text,
+          name: _nameController.text.trim(),
+          email: _emailController.text.trim(),
           password: _passwordController.text,
           confirmPassword: _confirmPasswordController.text,
         );
 
-    if (success && mounted) {
+    if (success && mounted && !_isNavigating) {
+      _isNavigating = true;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const HomeScreen()),
         (route) => false,
@@ -120,6 +126,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _nameController,
+                    enabled: !authState.isLoading,
                     textCapitalization: TextCapitalization.words,
                     decoration: const InputDecoration(
                       hintText: 'e.g. Alex Wilson',
@@ -127,7 +134,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     ),
                     validator: (val) {
                       if (val == null || val.trim().isEmpty) {
-                        return 'Please enter your full name';
+                        return 'Please enter your full name.';
                       }
                       return null;
                     },
@@ -145,6 +152,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _emailController,
+                    enabled: !authState.isLoading,
                     keyboardType: TextInputType.emailAddress,
                     decoration: const InputDecoration(
                       hintText: 'e.g. alex.wilson@connectcall.io',
@@ -152,10 +160,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     ),
                     validator: (val) {
                       if (val == null || val.trim().isEmpty) {
-                        return 'Please enter an email';
+                        return 'Please enter a valid email address.';
                       }
-                      if (!val.contains('@') || !val.contains('.')) {
-                        return 'Please enter a valid email address';
+                      if (!val.contains('@') || !val.contains('.') || val.trim().length < 5) {
+                        return 'Please enter a valid email address.';
                       }
                       return null;
                     },
@@ -173,6 +181,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _passwordController,
+                    enabled: !authState.isLoading,
                     obscureText: _obscurePassword,
                     decoration: InputDecoration(
                       hintText: 'At least 6 characters',
@@ -184,19 +193,21 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               : Icons.visibility_outlined,
                           size: 20,
                         ),
-                        onPressed: () {
-                          setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          });
-                        },
+                        onPressed: authState.isLoading
+                            ? null
+                            : () {
+                                setState(() {
+                                  _obscurePassword = !_obscurePassword;
+                                });
+                              },
                       ),
                     ),
                     validator: (val) {
                       if (val == null || val.isEmpty) {
-                        return 'Please enter a password';
+                        return 'Please enter your password.';
                       }
                       if (val.length < 6) {
-                        return 'Password must be at least 6 characters';
+                        return 'Password must be at least 6 characters.';
                       }
                       return null;
                     },
@@ -214,6 +225,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _confirmPasswordController,
+                    enabled: !authState.isLoading,
                     obscureText: _obscureConfirmPassword,
                     decoration: InputDecoration(
                       hintText: 'Re-enter your password',
@@ -225,19 +237,21 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               : Icons.visibility_outlined,
                           size: 20,
                         ),
-                        onPressed: () {
-                          setState(() {
-                            _obscureConfirmPassword = !_obscureConfirmPassword;
-                          });
-                        },
+                        onPressed: authState.isLoading
+                            ? null
+                            : () {
+                                setState(() {
+                                  _obscureConfirmPassword = !_obscureConfirmPassword;
+                                });
+                              },
                       ),
                     ),
                     validator: (val) {
                       if (val == null || val.isEmpty) {
-                        return 'Please confirm your password';
+                        return 'Please confirm your password.';
                       }
                       if (val != _passwordController.text) {
-                        return 'Passwords do not match';
+                        return 'Passwords do not match.';
                       }
                       return null;
                     },

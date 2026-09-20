@@ -6,14 +6,70 @@ import '../../core/constants/app_spacing.dart';
 import '../../core/constants/app_text_styles.dart';
 import '../../core/theme/theme_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/call_history_provider.dart';
+import '../../providers/call_provider.dart';
+import '../../providers/user_provider.dart';
 import '../../widgets/common_button.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/user_avatar.dart';
 import '../auth/login_screen.dart';
+import 'blocked_users_screen.dart';
 import 'edit_profile_dialog.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
+
+  void _showThemeDialog(BuildContext context, WidgetRef ref, ThemeMode currentMode) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Select App Theme'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: const Text('System default'),
+                trailing: currentMode == ThemeMode.system
+                    ? const Icon(Icons.check_rounded, color: AppColors.primaryBlue)
+                    : null,
+                onTap: () {
+                  ref.read(themeModeProvider.notifier).setThemeMode(ThemeMode.system);
+                  Navigator.of(ctx).pop();
+                },
+              ),
+              ListTile(
+                title: const Text('Light'),
+                trailing: currentMode == ThemeMode.light
+                    ? const Icon(Icons.check_rounded, color: AppColors.primaryBlue)
+                    : null,
+                onTap: () {
+                  ref.read(themeModeProvider.notifier).setThemeMode(ThemeMode.light);
+                  Navigator.of(ctx).pop();
+                },
+              ),
+              ListTile(
+                title: const Text('Dark'),
+                trailing: currentMode == ThemeMode.dark
+                    ? const Icon(Icons.check_rounded, color: AppColors.primaryBlue)
+                    : null,
+                onTap: () {
+                  ref.read(themeModeProvider.notifier).setThemeMode(ThemeMode.dark);
+                  Navigator.of(ctx).pop();
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -31,7 +87,7 @@ class ProfileScreen extends ConsumerWidget {
           children: [
             const SizedBox(height: 12),
 
-            // Profile Picture & Online Status
+            // Profile Picture & Verified Badge
             Center(
               child: Stack(
                 children: [
@@ -74,7 +130,7 @@ class ProfileScreen extends ConsumerWidget {
 
             // Email or Phone
             Text(
-              user?.email ?? '',
+              user?.email.isNotEmpty == true ? user!.email : (user?.phone ?? ''),
               style: AppTextStyles.body(
                 color: isDark ? AppColors.darkMutedText : AppColors.secondaryText,
               ),
@@ -129,31 +185,79 @@ class ProfileScreen extends ConsumerWidget {
                     color: isDark ? AppColors.darkBorder : AppColors.border,
                   ),
 
-                  // Dark Mode Switch
-                  SwitchListTile(
-                    secondary: Container(
+                  // Theme Mode Option (System default, Light, Dark)
+                  ListTile(
+                    leading: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
                         color: isDark ? AppColors.darkElevatedSurface : AppColors.cyanSoft,
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Icon(
-                        isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                        themeMode == ThemeMode.dark
+                            ? Icons.dark_mode_rounded
+                            : (themeMode == ThemeMode.light
+                                ? Icons.light_mode_rounded
+                                : Icons.brightness_auto_rounded),
                         color: AppColors.cyanDark,
                         size: 20,
                       ),
                     ),
                     title: Text(
-                      'Dark Theme',
+                      'App Theme',
                       style: AppTextStyles.bodyMedium(
                         color: isDark ? AppColors.darkPrimaryText : AppColors.primaryText,
                       ),
                     ),
-                    value: themeMode == ThemeMode.dark,
-                    onChanged: (val) {
-                      ref.read(themeModeProvider.notifier).setThemeMode(
-                            val ? ThemeMode.dark : ThemeMode.light,
-                          );
+                    subtitle: Text(
+                      themeMode == ThemeMode.dark
+                          ? 'Dark'
+                          : (themeMode == ThemeMode.light ? 'Light' : 'System default'),
+                      style: AppTextStyles.caption(
+                        color: isDark ? AppColors.darkMutedText : AppColors.secondaryText,
+                      ),
+                    ),
+                    trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                    onTap: () => _showThemeDialog(context, ref, themeMode),
+                  ),
+
+                  Divider(
+                    height: 1,
+                    indent: 56,
+                    color: isDark ? AppColors.darkBorder : AppColors.border,
+                  ),
+
+                  // Blocked Users Management
+                  ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: isDark ? AppColors.darkElevatedSurface : Colors.red.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.block_rounded,
+                        color: AppColors.error,
+                        size: 20,
+                      ),
+                    ),
+                    title: Text(
+                      'Blocked Users',
+                      style: AppTextStyles.bodyMedium(
+                        color: isDark ? AppColors.darkPrimaryText : AppColors.primaryText,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Manage and unblock users',
+                      style: AppTextStyles.caption(
+                        color: isDark ? AppColors.darkMutedText : AppColors.secondaryText,
+                      ),
+                    ),
+                    trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const BlockedUsersScreen()),
+                      );
                     },
                   ),
                 ],
@@ -162,17 +266,17 @@ class ProfileScreen extends ConsumerWidget {
 
             const SizedBox(height: AppSpacing.xxl),
 
-            // Logout Button
+            // Sign Out Button with Section 5 Confirmation Dialog
             CommonButton(
-              text: 'Log Out',
+              text: 'Sign Out',
               variant: ButtonVariant.danger,
               icon: Icons.logout_rounded,
               onPressed: () async {
                 final confirm = await showDialog<bool>(
                   context: context,
                   builder: (ctx) => AlertDialog(
-                    title: const Text('Log Out'),
-                    content: const Text('Are you sure you want to sign out of ConnectCall?'),
+                    title: const Text('Sign out?'),
+                    content: const Text('Are you sure you want to sign out?'),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.of(ctx).pop(false),
@@ -180,14 +284,26 @@ class ProfileScreen extends ConsumerWidget {
                       ),
                       TextButton(
                         onPressed: () => Navigator.of(ctx).pop(true),
-                        child: const Text('Log Out', style: TextStyle(color: AppColors.error)),
+                        child: const Text('Sign out', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold)),
                       ),
                     ],
                   ),
                 );
 
                 if (confirm == true && context.mounted) {
+                  // 1. Ensure no active call exists & clean up call resources
+                  await ref.read(callControllerProvider.notifier).endCall();
+                  ref.read(callControllerProvider.notifier).resetSession();
+
+                  // 2. Sign out from Firebase Auth and local session
                   await ref.read(authNotifierProvider.notifier).signOut();
+
+                  // 3. Clear user-specific providers
+                  ref.invalidate(contactsStreamProvider);
+                  ref.invalidate(contactsListProvider);
+                  ref.invalidate(callHistoryNotifierProvider);
+
+                  // 4. Navigate to Login and clear route stack
                   if (context.mounted) {
                     Navigator.of(context).pushAndRemoveUntil(
                       MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -209,7 +325,7 @@ class ProfileScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'WebRTC Real-Time Calling Engine',
+              'Agora RTC Real-Time Calling Engine',
               style: AppTextStyles.caption(color: AppColors.primaryBlue),
             ),
           ],

@@ -1,3 +1,7 @@
+plugins {
+    id("com.google.gms.google-services") version "4.4.2" apply false
+}
+
 allprojects {
     repositories {
         google()
@@ -17,6 +21,14 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(":app")
+}
+
+subprojects {
+    project.plugins.withId("com.android.library") {
+        project.extensions.findByType(com.android.build.gradle.BaseExtension::class.java)?.apply {
+            ndkVersion = "28.2.13676358"
+        }
+    }
 }
 
 tasks.register<Delete>("clean") {

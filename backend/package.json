@@ -1,0 +1,27 @@
+{
+  "name": "connectcall-backend",
+  "version": "1.0.0",
+  "description": "Secure, scalable backend foundation for ConnectCall",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "test": "node tests/agora_token.test.js"
+  },
+  "keywords": [
+    "connectcall",
+    "backend",
+    "express",
+    "node"
+  ],
+  "author": "ConnectCall",
+  "license": "ISC",
+  "dependencies": {
+    "agora-token": "^2.0.6",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "firebase-admin": "^14.4.0",
+    "helmet": "^8.0.0"
+  }
+}

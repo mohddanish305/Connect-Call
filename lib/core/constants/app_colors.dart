@@ -35,7 +35,7 @@ class AppColors {
 
   // Text Colors (Dark Mode)
   static const Color darkPrimaryText = Color(0xFFF8FAFC);
-  static const Color darkSecondaryText = Color(0xFFCBD5E1);
+  static const Color darkSecondaryText = Color(0xFF94A3B8);
   static const Color darkMutedText = Color(0xFF94A3B8);
 
   // Functional / Status Colors

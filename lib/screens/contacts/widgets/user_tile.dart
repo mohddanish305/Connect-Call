@@ -11,6 +11,7 @@ class UserTile extends StatelessWidget {
   final VoidCallback onAudioCall;
   final VoidCallback onVideoCall;
   final VoidCallback? onTap;
+  final bool isCalling;
 
   const UserTile({
     super.key,
@@ -18,6 +19,7 @@ class UserTile extends StatelessWidget {
     required this.onAudioCall,
     required this.onVideoCall,
     this.onTap,
+    this.isCalling = false,
   });
 
   @override
@@ -69,46 +71,78 @@ class UserTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
-                      user.isOnline ? StatusBadge.online() : StatusBadge.offline(),
+                      Row(
+                        children: [
+                          user.isOnline ? StatusBadge.online() : StatusBadge.offline(),
+                          if (!user.isOnline) ...[
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                user.lastSeenFormatted,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTextStyles.caption(
+                                  color: isDark ? AppColors.darkMutedText : AppColors.mutedText,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ],
                   ),
                 ),
 
-                // Audio Call Action
-                IconButton(
-                  icon: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: isDark ? AppColors.darkElevatedSurface : AppColors.primarySoft,
-                      shape: BoxShape.circle,
+                if (isCalling)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primaryBlue),
                     ),
-                    child: Icon(
-                      Icons.phone_rounded,
-                      color: isDark ? AppColors.primaryBlueLight : AppColors.primaryBlue,
-                      size: 20,
-                    ),
-                  ),
-                  tooltip: 'Audio Call',
-                  onPressed: onAudioCall,
-                ),
+                  )
+                else
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Audio Call Action
+                      IconButton(
+                        icon: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: isDark ? AppColors.darkElevatedSurface : AppColors.primarySoft,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.phone_rounded,
+                            color: isDark ? AppColors.primaryBlueLight : AppColors.primaryBlue,
+                            size: 20,
+                          ),
+                        ),
+                        tooltip: 'Audio Call ${user.name}',
+                        onPressed: onAudioCall,
+                      ),
 
-                // Video Call Action
-                IconButton(
-                  icon: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: isDark ? AppColors.darkElevatedSurface : AppColors.cyanSoft,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.videocam_rounded,
-                      color: isDark ? AppColors.cyan : AppColors.cyanDark,
-                      size: 20,
-                    ),
+                      // Video Call Action
+                      IconButton(
+                        icon: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: isDark ? AppColors.darkElevatedSurface : AppColors.cyanSoft,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.videocam_rounded,
+                            color: isDark ? AppColors.cyan : AppColors.cyanDark,
+                            size: 20,
+                          ),
+                        ),
+                        tooltip: 'Video Call ${user.name}',
+                        onPressed: onVideoCall,
+                      ),
+                    ],
                   ),
-                  tooltip: 'Video Call',
-                  onPressed: onVideoCall,
-                ),
               ],
             ),
           ),
