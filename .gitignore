@@ -52,6 +52,7 @@ backend/node_modules/
 backend-worker/node_modules/
 .wrangler/
 backend-worker/.wrangler/
+backend-worker/worker-configuration.d.ts
 
 # Security and Credentials
 .env

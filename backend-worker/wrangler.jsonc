@@ -7,9 +7,9 @@
     "nodejs_compat"
   ],
   "vars": {
-    "SERVICE_NAME": "ConnectCall Backend",
+    "AGORA_TOKEN_EXPIRY_SECONDS": "3600",
     "FIREBASE_PROJECT_ID": "connectcall-01",
-    "AGORA_TOKEN_EXPIRY_SECONDS": "3600"
+    "SERVICE_NAME": "ConnectCall Backend"
   },
   "observability": {
     "enabled": true
