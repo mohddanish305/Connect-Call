@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ConnectCall
 
 > Real-Time 1-to-1 Audio & Video Calling Application
@@ -389,3 +390,6 @@ In accordance with internship evaluation guidelines, the development of ConnectC
 - **Antigravity IDE**: Assisted with codebase navigation, refactoring, test execution, and security audit verification.
 
 All generated code, state machines, Agora RTC integrations, and security rules were manually reviewed, tested, and hardened by the developer.
+=======
+# Connect-Call
+>>>>>>> 2387b99231678962a59e86987c12c8488bac9c1d
