@@ -41,23 +41,30 @@ function loadAndValidateEnv() {
 
   const isAgoraConfigured = isAgoraAppIdConfigured && isAgoraCertificateConfigured;
 
-  return Object.freeze({
-    PORT: port,
-    NODE_ENV: nodeEnv,
-    IS_PRODUCTION: nodeEnv === 'production',
-    IS_DEVELOPMENT: nodeEnv === 'development',
-    ALLOWED_ORIGINS: allowedOrigins,
-    AGORA_APP_ID: agoraAppId,
-    AGORA_APP_CERTIFICATE: agoraAppCertificate,
-    AGORA_TOKEN_EXPIRY_SECONDS: isNaN(tokenExpiry) ? 3600 : tokenExpiry,
-    isAgoraAppIdConfigured,
-    isAgoraCertificateConfigured,
-    isAgoraConfigured,
-    FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID || 'connectcall-01',
-    FIREBASE_SERVICE_ACCOUNT_PATH: process.env.FIREBASE_SERVICE_ACCOUNT_PATH || '',
-    FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL || '',
-    FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') : '',
-  });
+    let firebasePrivateKey = (process.env.FIREBASE_PRIVATE_KEY || '').trim();
+    if ((firebasePrivateKey.startsWith('"') && firebasePrivateKey.endsWith('"')) ||
+        (firebasePrivateKey.startsWith("'") && firebasePrivateKey.endsWith("'"))) {
+      firebasePrivateKey = firebasePrivateKey.slice(1, -1).trim();
+    }
+    firebasePrivateKey = firebasePrivateKey.replace(/\\n/g, '\n');
+
+    return Object.freeze({
+      PORT: port,
+      NODE_ENV: nodeEnv,
+      IS_PRODUCTION: nodeEnv === 'production',
+      IS_DEVELOPMENT: nodeEnv === 'development',
+      ALLOWED_ORIGINS: allowedOrigins,
+      AGORA_APP_ID: agoraAppId,
+      AGORA_APP_CERTIFICATE: agoraAppCertificate,
+      AGORA_TOKEN_EXPIRY_SECONDS: isNaN(tokenExpiry) ? 3600 : tokenExpiry,
+      isAgoraAppIdConfigured,
+      isAgoraCertificateConfigured,
+      isAgoraConfigured,
+      FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID || 'connectcall-01',
+      FIREBASE_SERVICE_ACCOUNT_PATH: process.env.FIREBASE_SERVICE_ACCOUNT_PATH || '',
+      FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL || '',
+      FIREBASE_PRIVATE_KEY: firebasePrivateKey,
+    });
 }
 
 const env = loadAndValidateEnv();
