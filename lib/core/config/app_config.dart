@@ -19,9 +19,9 @@ class AppConfig {
     defaultValue: kReleaseMode,
   );
 
-  // Production Backend URL placeholder for deployment (e.g. Cloudflare Worker, Render)
-  // Configure via: flutter run --dart-define=BACKEND_BASE_URL=https://<ACTUAL_WORKER_URL>
-  static const String productionBackendUrl = 'https://YOUR_DEPLOYED_BACKEND_DOMAIN';
+  // Production Backend URL (Vercel Serverless API)
+  // Set after Vercel deployment: flutter run --dart-define=BACKEND_BASE_URL=https://<YOUR_VERCEL_PROJECT>.vercel.app
+  static const String productionBackendUrl = 'https://YOUR_VERCEL_PROJECT.vercel.app';
 
   // Compile-time configured backend URL via: --dart-define=BACKEND_BASE_URL=https://...
   static const String _configuredBackendUrl = String.fromEnvironment(

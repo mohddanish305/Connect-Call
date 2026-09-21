@@ -33,32 +33,35 @@ app.use(notFoundHandler);
 // 7. Global Centralized Error Handler
 app.use(errorHandler);
 
-// Start server
-const server = app.listen(env.PORT, '0.0.0.0', () => {
-  console.log(`=========================================`);
-  console.log(` ConnectCall Backend Foundation Running`);
-  console.log(` Environment:                ${env.NODE_ENV}`);
-  console.log(` Port:                       ${env.PORT}`);
-  console.log(` Health:                     http://localhost:${env.PORT}/health`);
-  console.log(` AGORA_APP_ID configured:          ${env.isAgoraAppIdConfigured}`);
-  console.log(` AGORA_APP_CERTIFICATE configured: ${env.isAgoraCertificateConfigured}`);
-  console.log(` AGORA_TOKEN_EXPIRY_SECONDS:       ${env.AGORA_TOKEN_EXPIRY_SECONDS}`);
-  console.log(`=========================================`);
+// Start server (only in standalone execution or tests; skipped in Vercel serverless)
+let server;
+if (!process.env.VERCEL && (require.main === module || process.env.NODE_ENV === 'test')) {
+  server = app.listen(env.PORT, '0.0.0.0', () => {
+    console.log(`=========================================`);
+    console.log(` ConnectCall Backend Foundation Running`);
+    console.log(` Environment:                ${env.NODE_ENV}`);
+    console.log(` Port:                       ${env.PORT}`);
+    console.log(` Health:                     http://localhost:${env.PORT}/health`);
+    console.log(` AGORA_APP_ID configured:          ${env.isAgoraAppIdConfigured}`);
+    console.log(` AGORA_APP_CERTIFICATE configured: ${env.isAgoraCertificateConfigured}`);
+    console.log(` AGORA_TOKEN_EXPIRY_SECONDS:       ${env.AGORA_TOKEN_EXPIRY_SECONDS}`);
+    console.log(`=========================================`);
 
-  if (!env.isAgoraAppIdConfigured || !env.isAgoraCertificateConfigured) {
-    console.error('\n[FATAL STARTUP ERROR] Agora credentials validation failed:');
-    if (!env.isAgoraAppIdConfigured) {
-      console.error(' - AGORA_APP_ID is missing or invalid. Must be a 32-character hexadecimal App ID.');
+    if (!env.isAgoraAppIdConfigured || !env.isAgoraCertificateConfigured) {
+      console.error('\n[FATAL STARTUP ERROR] Agora credentials validation failed:');
+      if (!env.isAgoraAppIdConfigured) {
+        console.error(' - AGORA_APP_ID is missing or invalid. Must be a 32-character hexadecimal App ID.');
+      }
+      if (!env.isAgoraCertificateConfigured) {
+        console.error(' - AGORA_APP_CERTIFICATE is missing or invalid. Please configure your 32-character Primary Certificate directly in backend/.env.');
+      }
+      console.error('Backend startup aborted to prevent runtime call failures.\n');
+      if (process.env.NODE_ENV !== 'test') {
+        process.exit(1);
+      }
     }
-    if (!env.isAgoraCertificateConfigured) {
-      console.error(' - AGORA_APP_CERTIFICATE is missing or invalid. Please configure your 32-character Primary Certificate directly in backend/.env.');
-    }
-    console.error('Backend startup aborted to prevent runtime call failures.\n');
-    if (process.env.NODE_ENV !== 'test') {
-      process.exit(1);
-    }
-  }
-});
+  });
+}
 
 // Graceful shutdown handling
 function handleShutdown(signal) {
