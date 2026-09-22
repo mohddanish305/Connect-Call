@@ -20,8 +20,7 @@ class AppConfig {
   );
 
   // Production Backend URL (Vercel Serverless API)
-  // Set after Vercel deployment: flutter run --dart-define=BACKEND_BASE_URL=https://<YOUR_VERCEL_PROJECT>.vercel.app
-  static const String productionBackendUrl = 'https://YOUR_VERCEL_PROJECT.vercel.app';
+  static const String productionBackendUrl = 'https://connect-call-3zfappl6z-mohd-danishs-projects-8fb6a537.vercel.app';
 
   // Compile-time configured backend URL via: --dart-define=BACKEND_BASE_URL=https://...
   static const String _configuredBackendUrl = String.fromEnvironment(
