@@ -379,12 +379,11 @@ class CallingService {
     String? token = firebaseIdToken;
     if (token == null && hasFbUser) {
       try {
-        // Fix 4: Use cached valid Firebase token first with bounded timeout (do NOT force network refresh)
-        token = await fbUser.getIdToken(false).timeout(const Duration(seconds: 4));
+        token = await fbUser.getIdToken(false).timeout(const Duration(seconds: 15));
       } catch (cachedErr) {
         debugPrint('[CallingService] Error obtaining cached Firebase ID token: $cachedErr');
         try {
-          token = await fbUser.getIdToken(true).timeout(const Duration(seconds: 4));
+          token = await fbUser.getIdToken(true).timeout(const Duration(seconds: 15));
         } catch (forceErr) {
           debugPrint('[CallingService] Fallback forced refresh failed: $forceErr');
         }
@@ -408,11 +407,10 @@ class CallingService {
         firebaseIdToken: token,
       );
     } on CallingServiceException catch (e) {
-      // Fix 4: If backend specifically responds with 401 (token expired/invalid), perform ONE forced refresh and retry ONCE
       if (e.statusCode == 401 && hasFbUser) {
         debugPrint('[CallingService] Backend returned 401. Performing ONE forced token refresh and single retry...');
         try {
-          final refreshedToken = await fbUser.getIdToken(true).timeout(const Duration(seconds: 4));
+          final refreshedToken = await fbUser.getIdToken(true).timeout(const Duration(seconds: 15));
           if (refreshedToken != null && refreshedToken.isNotEmpty) {
             return await _tokenClient.fetchToken(
               channelName: channelName,
@@ -451,6 +449,16 @@ class CallingService {
       debugPrint('[Identity B] CallSignalingService callerId: ${call.callerId}');
       debugPrint('[Identity C] calls/${call.id}.callerId: ${call.callerId}');
       debugPrint('[Identity D] calls/${call.id}.receiverId: ${call.receiverId}');
+
+      // Prevent calling self
+      if (call.callerId == call.receiverId) {
+        debugPrint('[CALL TRACE] startCall blocked: attempted to call self (${call.callerId})');
+        _updateSession(_currentSession.copyWith(
+          status: CallStatus.failed,
+          errorMessage: 'You cannot call yourself.',
+        ));
+        return false;
+      }
 
       // 1. Section 7: Network connectivity pre-flight check
       debugPrint('[CALL TRACE] network check START');

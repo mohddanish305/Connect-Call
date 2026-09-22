@@ -69,8 +69,8 @@ class AgoraTokenClient {
       );
     }
 
-    final baseUrl = AppConfig.backendBaseUrl;
-    final url = Uri.parse('$baseUrl/api/agora/token');
+    var baseUrl = AppConfig.backendBaseUrl;
+    var url = Uri.parse('$baseUrl/api/agora/token');
 
     final headers = <String, String>{
       'Content-Type': 'application/json',
@@ -84,13 +84,24 @@ class AgoraTokenClient {
 
     final stopwatch = Stopwatch()..start();
     try {
-      // Security: log only safe diagnostic metadata; NEVER log Authorization header or token
       debugPrint('[CALL TRACE] POST $url START | Authorization header present: ${firebaseIdToken.isNotEmpty} | channelName: $channelName | numeric uid: $uid');
-      final response = await _httpClient
+      var response = await _httpClient
           .post(url, headers: headers, body: body)
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 15));
       stopwatch.stop();
       debugPrint('[CALL TRACE] POST $url END | status: ${response.statusCode} | elapsed: ${stopwatch.elapsedMilliseconds}ms');
+
+      // Failover: If preview URL returned 302 redirect or 401 Protected Deployment, retry with canonical production domain
+      if ((response.statusCode == 302 ||
+              (response.statusCode == 401 && response.body.contains('Protected deployment'))) &&
+          baseUrl != AppConfig.productionBackendUrl) {
+        debugPrint('[CALL TRACE] Preview URL protected by SSO. Retrying on canonical production domain: ${AppConfig.productionBackendUrl}');
+        baseUrl = AppConfig.productionBackendUrl;
+        url = Uri.parse('$baseUrl/api/agora/token');
+        response = await _httpClient
+            .post(url, headers: headers, body: body)
+            .timeout(const Duration(seconds: 15));
+      }
 
       final int statusCode = response.statusCode;
       debugPrint('[AGORA TOKEN]\nchannelName: $channelName\nHTTP status: $statusCode\nelapsed: ${stopwatch.elapsedMilliseconds}ms');
@@ -100,23 +111,26 @@ class AgoraTokenClient {
         final tokenData = json['data'] is Map<String, dynamic> ? json['data'] as Map<String, dynamic> : json;
         final res = AgoraTokenResponse.fromJson(tokenData, httpStatus: statusCode);
 
-        // Task 7: Report structured backend response without printing raw token
         debugPrint('[AGORA BACKEND RESPONSE]\nHTTP status: $statusCode\nsuccess: ${json['success'] == true}\nappId present: ${res.appId.isNotEmpty}\ntoken present: ${res.token.isNotEmpty}\nchannelName: ${res.channelName}\nuid: ${res.uid}\nexpiresAt: ${res.expiresAt.toIso8601String()}');
         return res;
       }
 
-      // Parse server message if available
+      // Parse server message if available (support both root and nested error.message)
       String serverMessage = '';
       try {
         final errJson = jsonDecode(response.body);
-        if (errJson is Map && errJson['message'] != null) {
-          serverMessage = errJson['message'].toString();
+        if (errJson is Map) {
+          if (errJson['message'] != null) {
+            serverMessage = errJson['message'].toString();
+          } else if (errJson['error'] is Map && errJson['error']['message'] != null) {
+            serverMessage = errJson['error']['message'].toString();
+          }
         }
       } catch (_) {}
 
       if (statusCode == 401) {
         throw CallingServiceException(
-          serverMessage.isNotEmpty ? serverMessage : 'Your session has expired. Please sign in again.',
+          serverMessage.isNotEmpty ? serverMessage : 'Authentication required. Please sign in again.',
           statusCode: 401,
         );
       } else if (statusCode == 403) {

@@ -144,6 +144,20 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
             child: contactsAsync.when(
               data: (contacts) {
                 if (contacts.isEmpty) {
+                  final query = ref.watch(searchQueryProvider).trim();
+                  if (query.isNotEmpty) {
+                    return EmptyStateWidget(
+                      icon: Icons.person_search_rounded,
+                      title: 'No users found',
+                      description:
+                          'No matching user found for "$query". Enter at least 2 characters of their name or exact email.',
+                      actionLabel: 'Clear Search',
+                      onAction: () {
+                        _searchController.clear();
+                        ref.read(searchQueryProvider.notifier).state = '';
+                      },
+                    );
+                  }
                   return EmptyStateWidget.noContacts(
                     onAction: () {
                       _searchController.clear();

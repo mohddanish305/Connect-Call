@@ -438,7 +438,9 @@ class _HomeDashboardTabState extends ConsumerState<HomeDashboardTab> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'No contacts online right now.',
+                              contacts.isEmpty
+                                  ? 'No established contacts yet.'
+                                  : 'No contacts online right now.',
                               style: TextStyle(
                                 fontSize: 13,
                                 color: secondaryTextColor,
@@ -447,9 +449,9 @@ class _HomeDashboardTabState extends ConsumerState<HomeDashboardTab> {
                           ),
                           GestureDetector(
                             onTap: widget.onNavigateToContacts,
-                            child: const Text(
-                              'Browse',
-                              style: TextStyle(
+                            child: Text(
+                              contacts.isEmpty ? 'Find Users' : 'View All',
+                              style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                                 color: brandBlue,

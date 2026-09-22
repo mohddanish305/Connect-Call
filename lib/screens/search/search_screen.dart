@@ -36,7 +36,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void initState() {
     super.initState();
     _focusNode.requestFocus();
-    _loadInitialContacts();
   }
 
   @override
@@ -45,19 +44,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     _searchController.dispose();
     _focusNode.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadInitialContacts() async {
-    setState(() => _isSearching = true);
-    final userService = ref.read(userServiceProvider);
-    final currentUser = ref.read(currentUserProvider);
-    final contacts = await userService.getContacts(currentUserId: currentUser?.id);
-    if (mounted) {
-      setState(() {
-        _searchResults = contacts;
-        _isSearching = false;
-      });
-    }
   }
 
   void _onSearchChanged(String query) {
@@ -69,6 +55,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Future<void> _performSearch(String query) async {
     if (!mounted) return;
+
+    if (query.length < 2) {
+      setState(() {
+        _currentQuery = query;
+        _isSearching = false;
+        _searchResults = [];
+      });
+      return;
+    }
+
     setState(() {
       _currentQuery = query;
       _isSearching = true;
@@ -76,7 +72,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     final userService = ref.read(userServiceProvider);
     final currentUser = ref.read(currentUserProvider);
-    final results = await userService.searchContacts(query, currentUserId: currentUser?.id);
+    final blockedIds = ref.read(blockedUserIdsStreamProvider).valueOrNull ?? {};
+
+    final results = await userService.searchUsers(
+      query,
+      currentUserId: currentUser?.id ?? '',
+      blockedUserIds: blockedIds,
+    );
 
     if (mounted) {
       setState(() {
@@ -248,7 +250,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                _currentQuery.isEmpty ? 'Find someone to call' : 'No users found',
+                _currentQuery.isEmpty
+                    ? 'Find someone to call'
+                    : (_currentQuery.length < 2
+                        ? 'Keep typing to search'
+                        : 'No users found'),
                 style: AppTextStyles.h3(
                   color: isDark ? AppColors.darkPrimaryText : AppColors.primaryText,
                 ),
@@ -257,8 +263,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               const SizedBox(height: 8),
               Text(
                 _currentQuery.isEmpty
-                    ? 'Search contacts by name, email, or phone number.'
-                    : 'No matching contact for "$_currentQuery". Try a different query.',
+                    ? 'Search for users by name or email (at least 2 characters).'
+                    : (_currentQuery.length < 2
+                        ? 'Please enter at least 2 characters to search directory.'
+                        : 'No matching user found for "$_currentQuery". Check the spelling and try again.'),
                 style: AppTextStyles.body(
                   color: isDark ? AppColors.darkMutedText : AppColors.secondaryText,
                 ),

@@ -20,7 +20,8 @@ class AppConfig {
   );
 
   // Production Backend URL (Vercel Serverless API)
-  static const String productionBackendUrl = 'https://connect-call-3zfappl6z-mohd-danishs-projects-8fb6a537.vercel.app';
+  static const String productionBackendUrl = 'https://connect-call-green.vercel.app';
+  static const String fallbackBackendUrl = 'https://connect-call-3zfappl6z-mohd-danishs-projects-8fb6a537.vercel.app';
 
   // Compile-time configured backend URL via: --dart-define=BACKEND_BASE_URL=https://...
   static const String _configuredBackendUrl = String.fromEnvironment(

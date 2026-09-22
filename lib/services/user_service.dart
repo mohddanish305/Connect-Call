@@ -2,15 +2,13 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
-import 'auth_service.dart';
 
 /// Manages Contacts and User Presence via Cloud Firestore 'users' collection
 /// with automatic offline cache fallback.
 class UserService {
-  final AuthService _authService;
   final FirebaseFirestore? _firestore;
 
-  UserService(this._authService, [FirebaseFirestore? firestore])
+  UserService([FirebaseFirestore? firestore])
       : _firestore = firestore ?? _safeGetFirestore();
 
   static FirebaseFirestore? _safeGetFirestore() {
@@ -22,68 +20,187 @@ class UserService {
     }
   }
 
-  /// Get contacts list from Firestore, falling back to local storage if offline
-  Future<List<UserModel>> getContacts({String? currentUserId}) async {
+  /// Retrieve established contacts by explicit ID list from Firestore
+  Future<List<UserModel>> getEstablishedContacts(
+    List<String> contactIds, {
+    String? currentUserId,
+  }) async {
     final firestore = _firestore;
-    if (firestore != null) {
+    if (firestore == null || contactIds.isEmpty) return <UserModel>[];
+
+    final validIds = contactIds
+        .where((id) => id.isNotEmpty && id != currentUserId)
+        .toSet()
+        .toList();
+    if (validIds.isEmpty) return <UserModel>[];
+
+    final List<UserModel> results = [];
+    for (var i = 0; i < validIds.length; i += 30) {
+      final chunk = validIds.sublist(
+        i,
+        (i + 30 > validIds.length) ? validIds.length : i + 30,
+      );
       try {
         final query = await firestore
             .collection('users')
-            .limit(50)
+            .where(FieldPath.documentId, whereIn: chunk)
             .get(const GetOptions(source: Source.serverAndCache))
-            .timeout(const Duration(seconds: 4));
+            .timeout(const Duration(seconds: 5));
 
-        if (query.docs.isNotEmpty) {
-          final users = query.docs
-              .map((doc) => UserModel.fromMap(doc.data()))
-              .where((u) => currentUserId == null || u.id != currentUserId)
-              .toList();
-
-          return users;
+        for (final doc in query.docs) {
+          final data = doc.data();
+          if (data.isNotEmpty) {
+            results.add(UserModel.fromMap(data));
+          }
         }
       } catch (e) {
-        debugPrint('[UserService] Firestore getContacts fallback to local: $e');
+        debugPrint('[UserService] getEstablishedContacts chunk error: $e');
       }
     }
 
-    // Fallback to local cached users
-    final allUsers = await _authService.getAllUsers();
-    if (currentUserId == null) return allUsers;
-    return allUsers.where((u) => u.id != currentUserId).toList();
+    return results;
   }
 
-  /// Real-time stream of all contacts from Firestore
-  Stream<List<UserModel>> streamContacts({String? currentUserId}) {
+  /// Get contacts list (scoped strictly to provided contactIds; empty by default)
+  Future<List<UserModel>> getContacts({
+    List<String>? contactIds,
+    String? currentUserId,
+  }) async {
+    if (contactIds == null || contactIds.isEmpty) {
+      return <UserModel>[];
+    }
+    return getEstablishedContacts(contactIds, currentUserId: currentUserId);
+  }
+
+  /// Real-time stream of established contacts with live online/offline presence
+  Stream<List<UserModel>> streamEstablishedContacts(
+    List<String> contactIds, {
+    String? currentUserId,
+  }) {
     final firestore = _firestore;
-    if (firestore == null) {
-      return Stream.fromFuture(getContacts(currentUserId: currentUserId));
+    if (firestore == null || contactIds.isEmpty) {
+      return Stream.value(<UserModel>[]);
     }
 
-    return firestore.collection('users').snapshots().map((snapshot) {
-      if (snapshot.docs.isEmpty) return <UserModel>[];
+    final validIds = contactIds
+        .where((id) => id.isNotEmpty && id != currentUserId)
+        .toSet()
+        .toList();
+    if (validIds.isEmpty) {
+      return Stream.value(<UserModel>[]);
+    }
 
-      return snapshot.docs
-          .map((doc) => UserModel.fromMap(doc.data()))
-          .where((u) => currentUserId == null || u.id != currentUserId)
-          .toList();
-    }).handleError((e) {
-      debugPrint('[UserService] Stream contacts notice: $e');
-      return <UserModel>[];
-    });
+    // Stream up to top 30 established contacts for live online status
+    final topIds = validIds.take(30).toList();
+    return firestore
+        .collection('users')
+        .where(FieldPath.documentId, whereIn: topIds)
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs
+              .map((doc) => UserModel.fromMap(doc.data()))
+              .where((u) => currentUserId == null || u.id != currentUserId)
+              .toList();
+        })
+        .handleError((e) {
+          debugPrint('[UserService] Stream established contacts error: $e');
+          return <UserModel>[];
+        });
   }
 
-  /// Search contacts by name, email, or phone
-  Future<List<UserModel>> searchContacts(String query, {String? currentUserId}) async {
-    final contacts = await getContacts(currentUserId: currentUserId);
-    if (query.trim().isEmpty) return contacts;
+  /// Deprecated: streamContacts delegates to empty stream if no contactIds are provided
+  Stream<List<UserModel>> streamContacts({
+    List<String>? contactIds,
+    String? currentUserId,
+  }) {
+    if (contactIds == null || contactIds.isEmpty) {
+      return Stream.value(<UserModel>[]);
+    }
+    return streamEstablishedContacts(contactIds, currentUserId: currentUserId);
+  }
 
-    final lowerQuery = query.trim().toLowerCase();
-    return contacts.where((u) {
-      final nameMatches = u.name.toLowerCase().contains(lowerQuery);
-      final emailMatches = u.email.toLowerCase().contains(lowerQuery);
-      final phoneMatches = u.phone.replaceAll(' ', '').contains(lowerQuery);
-      return nameMatches || emailMatches || phoneMatches;
-    }).toList();
+  /// Targeted search for users by name or email (minimum 2 characters required).
+  /// Enforces privacy: no full collection streaming, self is excluded, blocked users excluded.
+  Future<List<UserModel>> searchUsers(
+    String query, {
+    required String currentUserId,
+    Set<String>? blockedUserIds,
+  }) async {
+    final firestore = _firestore;
+    final trimmed = query.trim();
+    if (firestore == null || trimmed.length < 2) return <UserModel>[];
+
+    final blocked = blockedUserIds ?? const <String>{};
+    final Map<String, UserModel> results = {};
+
+    try {
+      final isEmail = trimmed.contains('@');
+      if (isEmail) {
+        final snap = await firestore
+            .collection('users')
+            .where('email', isEqualTo: trimmed.toLowerCase())
+            .limit(10)
+            .get()
+            .timeout(const Duration(seconds: 5));
+
+        for (final doc in snap.docs) {
+          final data = doc.data();
+          if (data.isNotEmpty) {
+            final user = UserModel.fromMap(data);
+            if (user.id != currentUserId && !blocked.contains(user.id)) {
+              results[user.id] = user;
+            }
+          }
+        }
+      } else {
+        final queriesToTry = <String>{trimmed};
+        if (trimmed.isNotEmpty) {
+          final capitalized = trimmed[0].toUpperCase() +
+              (trimmed.length > 1 ? trimmed.substring(1) : '');
+          queriesToTry.add(capitalized);
+          final lower = trimmed.toLowerCase();
+          queriesToTry.add(lower);
+        }
+
+        for (final q in queriesToTry) {
+          final snap = await firestore
+              .collection('users')
+              .where('name', isGreaterThanOrEqualTo: q)
+              .where('name', isLessThanOrEqualTo: '$q\uf8ff')
+              .limit(15)
+              .get()
+              .timeout(const Duration(seconds: 5));
+
+          for (final doc in snap.docs) {
+            final data = doc.data();
+            if (data.isNotEmpty) {
+              final user = UserModel.fromMap(data);
+              if (user.id != currentUserId && !blocked.contains(user.id)) {
+                results[user.id] = user;
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[UserService] searchUsers notice: $e');
+    }
+
+    return results.values.toList();
+  }
+
+  /// Search contacts delegates to searchUsers
+  Future<List<UserModel>> searchContacts(
+    String query, {
+    String? currentUserId,
+    Set<String>? blockedUserIds,
+  }) async {
+    if (query.trim().length < 2) return <UserModel>[];
+    return searchUsers(
+      query,
+      currentUserId: currentUserId ?? '',
+      blockedUserIds: blockedUserIds,
+    );
   }
 
   /// Synchronize current user profile to Firestore
@@ -134,20 +251,20 @@ class UserService {
   /// Retrieve a specific user by ID
   Future<UserModel?> getUserById(String id) async {
     final firestore = _firestore;
-    if (firestore != null) {
+    if (firestore != null && id.isNotEmpty) {
       try {
-        final doc = await firestore.collection('users').doc(id).get();
+        final doc = await firestore
+            .collection('users')
+            .doc(id)
+            .get()
+            .timeout(const Duration(seconds: 5));
         if (doc.exists && doc.data() != null) {
           return UserModel.fromMap(doc.data()!);
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[UserService] getUserById notice: $e');
+      }
     }
-
-    final allUsers = await _authService.getAllUsers();
-    try {
-      return allUsers.firstWhere((u) => u.id == id);
-    } catch (_) {
-      return null;
-    }
+    return null;
   }
 }
