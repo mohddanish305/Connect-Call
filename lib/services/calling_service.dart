@@ -391,7 +391,13 @@ class CallingService {
     }
 
     final bool tokenObtained = token != null && token.isNotEmpty;
-    debugPrint('[CallingService] Requesting token - Endpoint: /api/agora/token | currentUser exists: $hasFbUser | UID: $userUid | ID token obtained: $tokenObtained');
+    debugPrint(
+      '[AUTH DEBUG]\n'
+      'currentUserExists=$hasFbUser\n'
+      'uid=${userUid ?? "null"}\n'
+      'tokenObtained=$tokenObtained\n'
+      'tokenLength=${token?.length ?? 0}',
+    );
 
     if (token == null || token.isEmpty) {
       throw const CallingServiceException(
@@ -593,7 +599,7 @@ class CallingService {
         userMessage = e.message;
       } else {
         final errStr = e.toString();
-        if (errStr.contains('Authentication required') || errStr.contains('session has expired')) {
+        if (errStr.contains('auth/id-token-expired') || errStr.contains('session has expired')) {
           userMessage = 'Your session has expired. Please sign in again.';
         } else if (errStr.contains('No internet') || errStr.contains('network')) {
           userMessage = NetworkService.noInternetMessage;
@@ -753,7 +759,7 @@ class CallingService {
         userMessage = e.message;
       } else {
         final errStr = e.toString();
-        if (errStr.contains('Authentication required') || errStr.contains('session has expired')) {
+        if (errStr.contains('auth/id-token-expired') || errStr.contains('session has expired')) {
           userMessage = 'Your session has expired. Please sign in again.';
         } else if (errStr.contains('No internet') || errStr.contains('network')) {
           userMessage = NetworkService.noInternetMessage;

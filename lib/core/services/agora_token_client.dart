@@ -82,6 +82,13 @@ class AgoraTokenClient {
       'uid': uid,
     });
 
+    debugPrint(
+      '[AGORA API DEBUG]\n'
+      'backendUrl=$baseUrl\n'
+      'channelName=$channelName\n'
+      'agoraUid=$uid',
+    );
+
     final stopwatch = Stopwatch()..start();
     try {
       debugPrint('[CALL TRACE] POST $url START | Authorization header present: ${firebaseIdToken.isNotEmpty} | channelName: $channelName | numeric uid: $uid');
@@ -104,16 +111,6 @@ class AgoraTokenClient {
       }
 
       final int statusCode = response.statusCode;
-      debugPrint('[AGORA TOKEN]\nchannelName: $channelName\nHTTP status: $statusCode\nelapsed: ${stopwatch.elapsedMilliseconds}ms');
-
-      if (statusCode == 200) {
-        final json = jsonDecode(response.body) as Map<String, dynamic>;
-        final tokenData = json['data'] is Map<String, dynamic> ? json['data'] as Map<String, dynamic> : json;
-        final res = AgoraTokenResponse.fromJson(tokenData, httpStatus: statusCode);
-
-        debugPrint('[AGORA BACKEND RESPONSE]\nHTTP status: $statusCode\nsuccess: ${json['success'] == true}\nappId present: ${res.appId.isNotEmpty}\ntoken present: ${res.token.isNotEmpty}\nchannelName: ${res.channelName}\nuid: ${res.uid}\nexpiresAt: ${res.expiresAt.toIso8601String()}');
-        return res;
-      }
 
       // Parse server message if available (support both root and nested error.message)
       String serverMessage = '';
@@ -128,9 +125,36 @@ class AgoraTokenClient {
         }
       } catch (_) {}
 
+      debugPrint(
+        '[HTTP DEBUG]\n'
+        'statusCode=$statusCode\n'
+        'responseSuccess=${statusCode == 200}\n'
+        'responseMessage=${serverMessage.isNotEmpty ? serverMessage : (statusCode == 200 ? "OK" : "No server message")}',
+      );
+      debugPrint('[AGORA TOKEN]\nchannelName: $channelName\nHTTP status: $statusCode\nelapsed: ${stopwatch.elapsedMilliseconds}ms');
+
+      if (statusCode == 200) {
+        final json = jsonDecode(response.body) as Map<String, dynamic>;
+        final tokenData = json['data'] is Map<String, dynamic> ? json['data'] as Map<String, dynamic> : json;
+        final res = AgoraTokenResponse.fromJson(tokenData, httpStatus: statusCode);
+
+        debugPrint('[AGORA BACKEND RESPONSE]\nHTTP status: $statusCode\nsuccess: ${json['success'] == true}\nappId present: ${res.appId.isNotEmpty}\ntoken present: ${res.token.isNotEmpty}\nchannelName: ${res.channelName}\nuid: ${res.uid}\nexpiresAt: ${res.expiresAt.toIso8601String()}');
+        return res;
+      }
+
       if (statusCode == 401) {
+        if (serverMessage.toLowerCase().contains('protected deployment')) {
+          throw const CallingServiceException(
+            'Backend preview deployment is protected by Vercel Authentication. Please disable Deployment Protection on preview deployments in Vercel settings or use the canonical domain.',
+            statusCode: 401,
+          );
+        }
+        final isSessionExpired = serverMessage.toLowerCase().contains('expired') ||
+            serverMessage.toLowerCase().contains('session');
         throw CallingServiceException(
-          serverMessage.isNotEmpty ? serverMessage : 'Authentication required. Please sign in again.',
+          isSessionExpired
+              ? 'Your session has expired. Please sign in again.'
+              : (serverMessage.isNotEmpty ? serverMessage : 'Authentication required. Please sign in again.'),
           statusCode: 401,
         );
       } else if (statusCode == 403) {
@@ -142,6 +166,12 @@ class AgoraTokenClient {
         throw CallingServiceException(
           serverMessage.isNotEmpty ? serverMessage : 'Unable to start the call. Invalid request parameters.',
           statusCode: 400,
+        );
+      } else if (statusCode == 408) {
+        throw const CallingServiceException(
+          'Request timed out while connecting to calling service.',
+          statusCode: 408,
+          canRetry: true,
         );
       } else if (statusCode == 404) {
         throw const CallingServiceException(
