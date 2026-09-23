@@ -38,6 +38,7 @@ class _AudioCallScreenState extends ConsumerState<AudioCallScreen>
       final session = ref.read(callControllerProvider);
       final currentUser = ref.read(currentUserProvider);
       final isCaller = currentUser?.id == session.call?.callerId;
+      debugPrint('[CALL TRACE 05] Calling screen opened (AudioCallScreen mounted, callId: ${session.call?.id}, isCaller: $isCaller)');
       if (isCaller) {
         debugPrint('[CALL TRACE] AudioCallScreen mounted for caller; connecting Agora');
         ref.read(callingServiceProvider).connectAgoraForCaller();

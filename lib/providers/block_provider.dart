@@ -1,12 +1,14 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/block_service.dart';
+import 'auth_provider.dart';
 
 final blockServiceProvider = Provider<BlockService>((ref) {
   return BlockService(ref: ref);
 });
 
 final blockedUserIdsStreamProvider = StreamProvider.autoDispose<Set<String>>((ref) {
+  ref.watch(firebaseAuthStateProvider);
   final blockService = ref.watch(blockServiceProvider);
   User? authUser;
   try {

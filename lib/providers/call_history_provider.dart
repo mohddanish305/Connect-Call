@@ -88,7 +88,8 @@ class CallHistoryNotifier extends StateNotifier<AsyncValue<List<CallHistoryModel
 }
 
 final callHistoryNotifierProvider =
-    StateNotifierProvider<CallHistoryNotifier, AsyncValue<List<CallHistoryModel>>>((ref) {
+    StateNotifierProvider.autoDispose<CallHistoryNotifier, AsyncValue<List<CallHistoryModel>>>((ref) {
+  ref.watch(currentUserProvider);
   final service = ref.watch(callHistoryServiceProvider);
   return CallHistoryNotifier(service, ref);
 });

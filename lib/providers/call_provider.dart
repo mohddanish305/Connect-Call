@@ -119,9 +119,10 @@ class CallController extends StateNotifier<CallSession> {
     required CallType callType,
     String? customChannelName,
   }) async {
+    final fbUser = FirebaseAuth.instance.currentUser;
+    debugPrint('[CALL TRACE 01] call button pressed (caller: ${fbUser?.uid}, target: ${targetUser.id}, callType: ${callType.name})');
     debugPrint('[CALL TRACE] CallNotifier.startCall START (callType: ${callType.name}, target: ${targetUser.id})');
     debugPrint('[CALL TRACE] 02 auth check START');
-    final fbUser = FirebaseAuth.instance.currentUser;
     final currentUser = _ref.read(currentUserProvider);
     debugPrint('[CALL TRACE] 03 auth check END uid=${fbUser?.uid}');
 

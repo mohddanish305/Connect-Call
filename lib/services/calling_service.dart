@@ -67,10 +67,21 @@ class CallingService {
 
   void _bindAgoraEvents() {
     agoraService.onJoinChannelSuccess = (channel, uid) {
+      debugPrint('[CALL TRACE 12] onJoinChannelSuccess (channel: $channel, uid: $uid)');
       debugPrint('[CallingService] Agora channel joined: $channel (local uid: $uid)');
       final isCaller = _currentSession.call?.callerId == FirebaseAuth.instance.currentUser?.uid;
       final role = isCaller ? 'caller' : 'receiver';
       debugPrint('[CALL FLOW] callId=${_currentSession.call?.id} role=$role step=LOCAL_JOINED timestamp=${DateTime.now().toIso8601String()}');
+      debugPrint(
+        '[AGORA TRACE]\n'
+        'appIdPresent=true\n'
+        'tokenPresent=true\n'
+        'channelName=$channel\n'
+        'uid=$uid\n'
+        'initialize=true\n'
+        'joinChannel=true\n'
+        'connectionState=${_lastConnectionState.name}',
+      );
       if (isCaller) {
         debugPrint('[AGORA DEBUG A]\nonJoinChannelSuccess: true');
       } else {
@@ -102,6 +113,7 @@ class CallingService {
     };
 
     agoraService.onUserJoined = (remoteUid) {
+      debugPrint('[CALL TRACE 14] remote user joined (callId: ${_currentSession.call?.id}, remoteUid: $remoteUid)');
       debugPrint('[AGORA REMOTE JOIN] remoteUid=$remoteUid');
       debugPrint('[CallingService] Remote user joined Agora: $remoteUid');
       final call = _currentSession.call;
@@ -132,6 +144,17 @@ class CallingService {
           status: CallStatus.connected,
           clearError: true,
         ));
+        debugPrint('[CALL TRACE 15] call connected (callId: ${call?.id}, duration: ${_currentSession.durationSeconds})');
+        debugPrint(
+          '[AGORA TRACE]\n'
+          'appIdPresent=true\n'
+          'tokenPresent=true\n'
+          'channelName=${call?.channelName ?? "none"}\n'
+          'uid=${_currentSession.localUid ?? 0}\n'
+          'initialize=true\n'
+          'joinChannel=true\n'
+          'connectionState=${_lastConnectionState.name}',
+        );
         _transitionToInCall();
       } else {
         debugPrint('[CallingService] Notice: Participant $remoteUid joined (expected: $expectedRemoteUid).');
@@ -161,6 +184,16 @@ class CallingService {
 
     agoraService.onUserOffline = (remoteUid, reason) {
       debugPrint('[CallingService] Remote user left Agora: $remoteUid (reason: $reason)');
+      debugPrint(
+        '[AGORA TRACE]\n'
+        'appIdPresent=true\n'
+        'tokenPresent=true\n'
+        'channelName=${_currentSession.call?.channelName ?? "none"}\n'
+        'uid=${_currentSession.localUid ?? 0}\n'
+        'initialize=true\n'
+        'joinChannel=true\n'
+        'connectionState=${_lastConnectionState.name}',
+      );
       _updateSession(_currentSession.copyWith(
         isRemoteStreamReady: false,
         status: CallStatus.disconnected,
@@ -176,6 +209,16 @@ class CallingService {
     agoraService.onConnectionStateChanged = (state, reason) {
       _lastConnectionState = state;
       debugPrint('[CallingService] Agora connection: $state, reason: $reason');
+      debugPrint(
+        '[AGORA TRACE]\n'
+        'appIdPresent=true\n'
+        'tokenPresent=${_currentSession.localUid != null}\n'
+        'channelName=${_currentSession.call?.channelName ?? "none"}\n'
+        'uid=${_currentSession.localUid ?? 0}\n'
+        'initialize=true\n'
+        'joinChannel=true\n'
+        'connectionState=${state.name}',
+      );
       if (state == ConnectionStateType.connectionStateConnecting) {
         if (_currentSession.status != CallStatus.inCall) {
           _updateSession(_currentSession.copyWith(
@@ -207,15 +250,24 @@ class CallingService {
         if (isUnrecoverable) {
           _connectionTimeoutTimer?.cancel();
           _reconnectTimer?.cancel();
+          final errorMsg = 'Call authentication failed ($reason). Please check your credentials.';
+          debugPrint(
+            '[CALL FAILURE]\n'
+            'step=AGORA_CONNECTION_FAILED\n'
+            'exceptionType=AgoraRtcException\n'
+            'errorCode=${reason.name}\n'
+            'httpStatus=0\n'
+            'message=$errorMsg',
+          );
           _updateSession(_currentSession.copyWith(
             status: CallStatus.failed,
-            errorMessage: 'Call authentication failed. Please check your credentials.',
+            errorMessage: errorMsg,
           ));
-          debugPrint('[FAIL SOURCE] method=onConnectionStateChanged\n[FAIL SOURCE] status=${CallHistoryStatus.failed.name}\n[FAIL SOURCE] reason=Call authentication failed ($reason).\n[FAIL SOURCE] callId=${_currentSession.call?.id}');
+          debugPrint('[FAIL SOURCE] method=onConnectionStateChanged\n[FAIL SOURCE] status=${CallHistoryStatus.failed.name}\n[FAIL SOURCE] reason=$errorMsg\n[FAIL SOURCE] callId=${_currentSession.call?.id}');
           debugPrint('[CALL TERMINATION TRIGGER] location: ConnectionStateType.connectionStateFailed (unrecoverable: $reason)');
           _handleCallTermination(
             historyStatus: CallHistoryStatus.failed,
-            reason: 'Call authentication failed ($reason).',
+            reason: errorMsg,
             source: 'agora_error',
           );
         } else {
@@ -238,14 +290,24 @@ class CallingService {
           debugPrint('[CallingService] Agora token renewed successfully.');
         } catch (e) {
           debugPrint('[CallingService] Failed to renew Agora token: $e');
+          final failureReason = 'Agora token renewal failed: $e';
+          debugPrint(
+            '[CALL FAILURE]\n'
+            'step=TOKEN_PRIVILEGE_WILL_EXPIRE\n'
+            'exceptionType=${e.runtimeType}\n'
+            'errorCode=0\n'
+            'httpStatus=0\n'
+            'message=$failureReason',
+          );
           _updateSession(_currentSession.copyWith(
-            errorMessage: 'Your call session expired.',
+            errorMessage: failureReason,
           ));
-          debugPrint('[FAIL SOURCE] method=onTokenPrivilegeWillExpire\n[FAIL SOURCE] status=${CallHistoryStatus.failed.name}\n[FAIL SOURCE] reason=Your call session expired.\n[FAIL SOURCE] callId=${call.id}');
+          debugPrint('[FAIL SOURCE] method=onTokenPrivilegeWillExpire\n[FAIL SOURCE] status=${CallHistoryStatus.failed.name}\n[FAIL SOURCE] reason=$failureReason\n[FAIL SOURCE] callId=${call.id}');
           debugPrint('[CALL TERMINATION TRIGGER] location: onTokenPrivilegeWillExpire renew exception: $e');
           await _handleCallTermination(
             historyStatus: CallHistoryStatus.failed,
-            reason: 'Your call session expired.',
+            reason: failureReason,
+            source: 'agora_error',
           );
         }
       }
@@ -253,15 +315,35 @@ class CallingService {
 
     agoraService.onError = (err, msg) {
       debugPrint('[CallingService] Agora error: $err, $msg');
+      debugPrint(
+        '[AGORA TRACE]\n'
+        'appIdPresent=true\n'
+        'tokenPresent=${_currentSession.localUid != null}\n'
+        'channelName=${_currentSession.call?.channelName ?? "none"}\n'
+        'uid=${_currentSession.localUid ?? 0}\n'
+        'initialize=true\n'
+        'joinChannel=true\n'
+        'connectionState=${_lastConnectionState.name}',
+      );
+      debugPrint(
+        '[CALL FAILURE]\n'
+        'step=AGORA_ON_ERROR\n'
+        'exceptionType=AgoraErrorCode\n'
+        'errorCode=${err.name}\n'
+        'httpStatus=0\n'
+        'message=$msg',
+      );
       if (err == ErrorCodeType.errTokenExpired || err == ErrorCodeType.errInvalidToken) {
+        final reason = 'Agora RTC token error (${err.name}): $msg';
         _updateSession(_currentSession.copyWith(
-          errorMessage: 'Your call session expired.',
+          errorMessage: reason,
         ));
-        debugPrint('[FAIL SOURCE] method=onError\n[FAIL SOURCE] status=${CallHistoryStatus.failed.name}\n[FAIL SOURCE] reason=Your call session expired.\n[FAIL SOURCE] callId=${_currentSession.call?.id}');
+        debugPrint('[FAIL SOURCE] method=onError\n[FAIL SOURCE] status=${CallHistoryStatus.failed.name}\n[FAIL SOURCE] reason=$reason\n[FAIL SOURCE] callId=${_currentSession.call?.id}');
         debugPrint('[CALL TERMINATION TRIGGER] location: onError ($err, $msg)');
         _handleCallTermination(
           historyStatus: CallHistoryStatus.failed,
-          reason: 'Your call session expired.',
+          reason: reason,
+          source: 'agora_error',
         );
       }
     };
@@ -373,8 +455,16 @@ class CallingService {
     final fbUser = FirebaseAuth.instance.currentUser;
     final bool hasFbUser = fbUser != null;
     final String? userUid = fbUser?.uid;
+    final int providerCount = fbUser?.providerData.length ?? 0;
 
     debugPrint('[Identity E] Agora token request authenticated Firebase UID: $userUid');
+    debugPrint('[CALL TRACE 02] current Firebase user (uid: ${userUid ?? "null"}, exists: $hasFbUser, providerCount: $providerCount)');
+    debugPrint(
+      '[AUTH TRACE]\n'
+      'exists=$hasFbUser\n'
+      'uid=${userUid ?? "null"}\n'
+      'providerCount=$providerCount',
+    );
 
     String? token = firebaseIdToken;
     if (token == null && hasFbUser) {
@@ -391,15 +481,23 @@ class CallingService {
     }
 
     final bool tokenObtained = token != null && token.isNotEmpty;
+    final int tokenLength = token?.length ?? 0;
     debugPrint(
-      '[AUTH DEBUG]\n'
-      'currentUserExists=$hasFbUser\n'
-      'uid=${userUid ?? "null"}\n'
+      '[AUTH TRACE]\n'
       'tokenObtained=$tokenObtained\n'
-      'tokenLength=${token?.length ?? 0}',
+      'tokenLength=$tokenLength',
     );
+    debugPrint('[CALL TRACE 03] Firebase ID token obtained (tokenLength: $tokenLength, success: $tokenObtained)');
 
     if (token == null || token.isEmpty) {
+      debugPrint(
+        '[CALL FAILURE]\n'
+        'step=CALL_TRACE_03_TOKEN_OBTAINED\n'
+        'exceptionType=CallingServiceException\n'
+        'errorCode=401\n'
+        'httpStatus=401\n'
+        'message=Authentication required. Please sign in to make calls.',
+      );
       throw const CallingServiceException(
         'Authentication required. Please sign in to make calls.',
         statusCode: 401,
@@ -414,18 +512,39 @@ class CallingService {
       );
     } on CallingServiceException catch (e) {
       if (e.statusCode == 401 && hasFbUser) {
-        debugPrint('[CallingService] Backend returned 401. Performing ONE forced token refresh and single retry...');
+        debugPrint('[AUTH TRACE] Token request returned 401. Calling getIdToken(true) ONCE and retrying API ONCE...');
         try {
           final refreshedToken = await fbUser.getIdToken(true).timeout(const Duration(seconds: 15));
-          if (refreshedToken != null && refreshedToken.isNotEmpty) {
-            return await _tokenClient.fetchToken(
+          final retryTokenObtained = refreshedToken != null && refreshedToken.isNotEmpty;
+          final retryLength = refreshedToken?.length ?? 0;
+          debugPrint(
+            '[AUTH TRACE]\n'
+            'retryTokenObtained=$retryTokenObtained\n'
+            'retryTokenLength=$retryLength',
+          );
+          if (retryTokenObtained) {
+            final retryResponse = await _tokenClient.fetchToken(
               channelName: channelName,
               uid: uid,
               firebaseIdToken: refreshedToken,
             );
+            debugPrint('[AUTH TRACE] Second token request status=${retryResponse.httpStatus} success=true');
+            return retryResponse;
           }
+        } on CallingServiceException catch (retryErr) {
+          debugPrint('[AUTH TRACE] Second token request status=${retryErr.statusCode} message=${retryErr.message}');
+          debugPrint(
+            '[CALL FAILURE]\n'
+            'step=AUTH_TRACE_RETRY_401\n'
+            'exceptionType=CallingServiceException\n'
+            'errorCode=${retryErr.statusCode}\n'
+            'httpStatus=${retryErr.statusCode}\n'
+            'message=${retryErr.message}',
+          );
+          rethrow;
         } catch (retryErr) {
-          debugPrint('[CallingService] Token retry after 401 failed: $retryErr');
+          debugPrint('[AUTH TRACE] Second token request unexpected error: $retryErr');
+          rethrow;
         }
       }
       rethrow;
@@ -451,6 +570,7 @@ class CallingService {
     debugPrint('[CALL TRACE] START (callId: ${call.id}, caller: ${call.callerId}, receiver: ${call.receiverId})');
     try {
       final fbAuthUser = FirebaseAuth.instance.currentUser;
+      debugPrint('[CALL TRACE 02] current Firebase user (uid: ${fbAuthUser?.uid}, exists: ${fbAuthUser != null})');
       debugPrint('[Identity A] FirebaseAuth.currentUser.uid: ${fbAuthUser?.uid}');
       debugPrint('[Identity B] CallSignalingService callerId: ${call.callerId}');
       debugPrint('[Identity C] calls/${call.id}.callerId: ${call.callerId}');
@@ -549,7 +669,7 @@ class CallingService {
       // 4. Create Firestore call document FIRST before joining Agora
       try {
         debugPrint('[CALL OUTGOING]\ncallerUid: ${call.callerId}\nreceiverUid: ${call.receiverId}\ncallId: ${call.id}\ncallType: ${call.callType.name}\nchannelName: ${call.channelName}');
-        debugPrint('[CALL TRACE] 06 create call START');
+        debugPrint('[CALL TRACE 04] Firestore call document creation (callId: ${call.id}, channel: ${call.channelName}, type: ${call.callType.name})');
         await _signalingService.createCall(call);
         debugPrint('[CALL FLOW] callId=${call.id} role=caller step=CALL_DOC_CREATED timestamp=${DateTime.now().toIso8601String()}');
         debugPrint('[CALL TRACE] 07 create call END callId=${call.id}');
@@ -570,6 +690,14 @@ class CallingService {
         final errMessage = firestoreError is CallingServiceException
             ? firestoreError.message
             : 'Unable to start the call. Please check your connection and try again.';
+        debugPrint(
+          '[CALL FAILURE]\n'
+          'step=CALL_TRACE_04_FIRESTORE_CREATE\n'
+          'exceptionType=${firestoreError.runtimeType}\n'
+          'errorCode=0\n'
+          'httpStatus=0\n'
+          'message=$errMessage',
+        );
         _updateSession(_currentSession.copyWith(
           status: CallStatus.failed,
           errorMessage: errMessage,
@@ -587,6 +715,7 @@ class CallingService {
       _startRingingTimeoutTimer(call.id);
 
       // 7. Note: Agora connection will be started after navigation to the CallScreen via connectAgoraForCaller()
+      debugPrint('[CALL TRACE 05] Calling screen opened (callId: ${call.id}, type: ${call.callType.name})');
       debugPrint('[CALL FLOW] callId=${call.id} role=caller step=CALLING_SCREEN_OPENED timestamp=${DateTime.now().toIso8601String()}');
       debugPrint('[CALL TRACE] startCall document created and ringing timer started; awaiting CallScreen mount for Agora connection');
 
@@ -607,6 +736,15 @@ class CallingService {
           userMessage = 'Unable to reach calling service. Check your connection and try again.';
         }
       }
+
+      debugPrint(
+        '[CALL FAILURE]\n'
+        'step=START_CALL_OUTER\n'
+        'exceptionType=${e.runtimeType}\n'
+        'errorCode=${e is CallingServiceException ? (e.statusCode ?? 0) : 0}\n'
+        'httpStatus=${e is CallingServiceException ? (e.statusCode ?? 0) : 0}\n'
+        'message=$userMessage',
+      );
 
       // Pre-flight setup aborted: clear session and media without logging fake call history
       _updateSession(_currentSession.copyWith(
@@ -697,9 +835,11 @@ class CallingService {
       debugPrint('[AGORA APP ID]\nappId present: ${effectiveAppId.isNotEmpty}\nappId format valid: ${effectiveAppId.length == 32}');
 
       if (effectiveAppId.isNotEmpty) {
+        debugPrint('[CALL TRACE 08] Agora initialize START (appIdPresent: ${effectiveAppId.isNotEmpty})');
         debugPrint('[CALL FLOW] callId=${call.id} role=$role step=AGORA_INIT_START timestamp=${DateTime.now().toIso8601String()}');
         debugPrint('$tracePrefix Agora initialize START');
         engineInitialized = await agoraService.initialize(appId: effectiveAppId);
+        debugPrint('[CALL TRACE 09] Agora initialize END (initialized: $engineInitialized)');
         debugPrint('$tracePrefix Agora initialize END: initialized=$engineInitialized');
         if (!engineInitialized) {
           final errMsg = agoraService.lastErrorMessage ?? 'Engine failed to initialize.';
@@ -711,6 +851,7 @@ class CallingService {
         joinChannelCalled = true;
         debugPrint('[AGORA JOIN]\ncallId: ${call.id}\nchannelName: ${call.channelName}\nlocalAgoraUid: $uid');
         debugPrint('[CALL FLOW] callId=${call.id} role=$role step=JOIN_CHANNEL_START timestamp=${DateTime.now().toIso8601String()}');
+        debugPrint('[CALL TRACE 10] joinChannel START (channel: ${call.channelName}, uid: $uid, type: ${call.callType.name})');
         debugPrint('$tracePrefix joinChannel START');
         final cleanToken = tokenResponse.token.trim();
         debugPrint('[AGORA TOKEN DIAGNOSTIC] token source: ${AgoraDebugConfig.useTemporaryToken ? "AgoraDebugConfig (temporary)" : "Backend Service"}');
@@ -728,6 +869,7 @@ class CallingService {
           tokenExpiry: tokenResponse.expiresAt,
         );
         joinResultSuccess = joinResult.success;
+        debugPrint('[CALL TRACE 11] joinChannel result (success: $joinResultSuccess, errorCode: ${joinResult.errorCode})');
         debugPrint('$tracePrefix joinChannel END: success=$joinResultSuccess');
         if (joinResultSuccess) {
           debugPrint('[CALL FLOW] callId=${call.id} role=$role step=JOIN_CHANNEL_SUCCESS timestamp=${DateTime.now().toIso8601String()}');
@@ -767,6 +909,15 @@ class CallingService {
           userMessage = 'Unable to connect to call. Please try again.';
         }
       }
+
+      debugPrint(
+        '[CALL FAILURE]\n'
+        'step=CONNECT_AGORA_EXCEPTION\n'
+        'exceptionType=${e.runtimeType}\n'
+        'errorCode=${e is CallingServiceException ? (e.statusCode ?? 0) : 0}\n'
+        'httpStatus=${e is CallingServiceException ? (e.statusCode ?? 0) : httpStatus}\n'
+        'message=$userMessage',
+      );
 
       debugPrint('[FAIL SOURCE] method=_connectAgoraForCall\n[FAIL SOURCE] status=${CallHistoryStatus.failed.name}\n[FAIL SOURCE] reason=$userMessage\n[FAIL SOURCE] callId=${call.id}');
       debugPrint('[CALL TERMINATION TRIGGER] location: _connectAgoraForCall catch: $e (isIncoming: $isIncoming)');
@@ -860,7 +1011,26 @@ class CallingService {
     }
 
     final currentAuthUid = FirebaseAuth.instance.currentUser?.uid;
-    final uid = getDeterministicAgoraUid(currentAuthUid ?? call.calleeId);
+    if (currentAuthUid == null || (currentAuthUid != call.receiverId && currentAuthUid != call.calleeId)) {
+      debugPrint('[CallingService] acceptCall rejected: receiverId does not match current Firebase UID ($currentAuthUid vs ${call.receiverId})');
+      _updateSession(_currentSession.copyWith(
+        status: CallStatus.failed,
+        errorMessage: 'Authentication mismatch on accepting call.',
+      ));
+      return false;
+    }
+
+    final uid = getDeterministicAgoraUid(currentAuthUid);
+
+    debugPrint(
+      '[ACCEPT TRACE]\n'
+      'callId=${call.id}\n'
+      'currentUid=$currentAuthUid\n'
+      'receiverId=${call.receiverId}\n'
+      'channelName=${call.channelName}\n'
+      'oldStatus=${_currentSession.status.name}\n'
+      'newStatus=accepted',
+    );
 
     // Task 2: Trace Phone B incoming call accept metadata
     debugPrint('[CALL ACCEPT]\ncallId: ${call.id}\ncallerId: ${call.callerId}\nreceiverId: ${call.receiverId}\nchannelName: ${call.channelName}\nfirebaseUid: $currentAuthUid\nagoraUid: $uid');
@@ -935,6 +1105,13 @@ class CallingService {
       }
 
       debugPrint('[CallingService] Firestore signaling update: ${remoteCall.status}');
+      debugPrint(
+        '[CALL STATUS]\n'
+        'callId=$callId\n'
+        'oldStatus=${_currentSession.status.name}\n'
+        'newStatus=${remoteCall.status.name}\n'
+        'source=firestore_signaling',
+      );
       if (remoteCall.status == CallStatus.accepted &&
           (_currentSession.status == CallStatus.calling || _currentSession.status == CallStatus.ringing)) {
         _ringingTimeoutTimer?.cancel();
@@ -1072,6 +1249,27 @@ class CallingService {
                 ? CallStatus.missed
                 : CallStatus.failed));
 
+    final callStatusBefore = _currentSession.status.name;
+    final callStatusAfter = firestoreStatus.name;
+
+    debugPrint(
+      '[TERMINATION TRACE]\n'
+      'callId=${call.id}\n'
+      'reason=${reason ?? "Unknown"}\n'
+      'sourceFile=calling_service.dart\n'
+      'sourceFunction=_handleCallTermination\n'
+      'callStatusBefore=$callStatusBefore\n'
+      'callStatusAfter=$callStatusAfter',
+    );
+
+    debugPrint(
+      '[CALL STATUS]\n'
+      'callId=${call.id}\n'
+      'oldStatus=$callStatusBefore\n'
+      'newStatus=$callStatusAfter\n'
+      'source=_handleCallTermination ($source)',
+    );
+
     // Phase 2 structured termination log
     debugPrint('[CALL TERMINATION]\ncallId=${call.id}\nrole=$role\nreason=${reason ?? "Unknown"}\nsource=$source\nfirestoreStatus=${firestoreStatus.name}\nagoraState=${_lastConnectionState.name}\nremoteUid=$remUid\ntimestamp=${endedAt.toIso8601String()}');
 
@@ -1096,15 +1294,15 @@ class CallingService {
     debugPrint('[CALL TRACE] _handleCallTermination TRIGGER STACK:\n${StackTrace.current}');
 
     try {
-      debugPrint('[CALL TRACE] Firestore call status update START (status: ${firestoreStatus.name})');
+      debugPrint('[CALL TRACE 13] Firestore call status update START (callId: ${call.id}, status: ${firestoreStatus.name})');
       await _signalingService.updateCallStatus(
         call.id,
         firestoreStatus,
         duration: actualDuration,
       );
-      debugPrint('[CALL TRACE] Firestore call status update END');
+      debugPrint('[CALL TRACE 13] Firestore call status update END (callId: ${call.id})');
     } catch (e) {
-      debugPrint('[CALL TRACE] Firestore call status update EXCEPTION: $e');
+      debugPrint('[CALL TRACE 13] Firestore call status update EXCEPTION: $e');
       debugPrint('[CallingService] updateCallStatus notice on termination: $e');
     }
 

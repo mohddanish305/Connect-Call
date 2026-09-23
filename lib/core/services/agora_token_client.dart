@@ -91,6 +91,7 @@ class AgoraTokenClient {
 
     final stopwatch = Stopwatch()..start();
     try {
+      debugPrint('[CALL TRACE 06] POST /api/agora/token START (url: $url, channel: $channelName, uid: $uid)');
       debugPrint('[CALL TRACE] POST $url START | Authorization header present: ${firebaseIdToken.isNotEmpty} | channelName: $channelName | numeric uid: $uid');
       var response = await _httpClient
           .post(url, headers: headers, body: body)
@@ -125,36 +126,63 @@ class AgoraTokenClient {
         }
       } catch (_) {}
 
+      bool tokenPresent = false;
+      bool appIdPresent = false;
+      AgoraTokenResponse? tokenRes;
+
+      if (statusCode == 200) {
+        try {
+          final json = jsonDecode(response.body) as Map<String, dynamic>;
+          final tokenData = json['data'] is Map<String, dynamic> ? json['data'] as Map<String, dynamic> : json;
+          tokenRes = AgoraTokenResponse.fromJson(tokenData, httpStatus: statusCode);
+          tokenPresent = tokenRes.token.isNotEmpty;
+          appIdPresent = tokenRes.appId.isNotEmpty;
+        } catch (_) {}
+      }
+
+      debugPrint('[CALL TRACE 07] POST /api/agora/token RESPONSE (status: $statusCode, elapsed: ${stopwatch.elapsedMilliseconds}ms)');
       debugPrint(
-        '[HTTP DEBUG]\n'
-        'statusCode=$statusCode\n'
-        'responseSuccess=${statusCode == 200}\n'
-        'responseMessage=${serverMessage.isNotEmpty ? serverMessage : (statusCode == 200 ? "OK" : "No server message")}',
+        '[AGORA API]\n'
+        'status=$statusCode\n'
+        'success=${statusCode == 200}\n'
+        'message=${serverMessage.isNotEmpty ? serverMessage : (statusCode == 200 ? "OK" : "No server message")}\n'
+        'tokenPresent=$tokenPresent\n'
+        'appIdPresent=$appIdPresent',
       );
       debugPrint('[AGORA TOKEN]\nchannelName: $channelName\nHTTP status: $statusCode\nelapsed: ${stopwatch.elapsedMilliseconds}ms');
 
-      if (statusCode == 200) {
-        final json = jsonDecode(response.body) as Map<String, dynamic>;
-        final tokenData = json['data'] is Map<String, dynamic> ? json['data'] as Map<String, dynamic> : json;
-        final res = AgoraTokenResponse.fromJson(tokenData, httpStatus: statusCode);
-
-        debugPrint('[AGORA BACKEND RESPONSE]\nHTTP status: $statusCode\nsuccess: ${json['success'] == true}\nappId present: ${res.appId.isNotEmpty}\ntoken present: ${res.token.isNotEmpty}\nchannelName: ${res.channelName}\nuid: ${res.uid}\nexpiresAt: ${res.expiresAt.toIso8601String()}');
-        return res;
+      if (statusCode == 200 && tokenRes != null) {
+        debugPrint('[AGORA BACKEND RESPONSE]\nHTTP status: $statusCode\nsuccess: true\nappId present: ${tokenRes.appId.isNotEmpty}\ntoken present: ${tokenRes.token.isNotEmpty}\nchannelName: ${tokenRes.channelName}\nuid: ${tokenRes.uid}\nexpiresAt: ${tokenRes.expiresAt.toIso8601String()}');
+        return tokenRes;
       }
+
+      debugPrint(
+        '[CALL FAILURE]\n'
+        'step=CALL_TRACE_07_TOKEN_RESPONSE\n'
+        'exceptionType=CallingServiceException\n'
+        'errorCode=$statusCode\n'
+        'httpStatus=$statusCode\n'
+        'message=$serverMessage',
+      );
 
       if (statusCode == 401) {
         if (serverMessage.toLowerCase().contains('protected deployment')) {
           throw const CallingServiceException(
-            'Backend preview deployment is protected by Vercel Authentication. Please disable Deployment Protection on preview deployments in Vercel settings or use the canonical domain.',
+            'Vercel preview deployment is protected by SSO. Please use production domain or disable Deployment Protection.',
             statusCode: 401,
           );
         }
-        final isSessionExpired = serverMessage.toLowerCase().contains('expired') ||
-            serverMessage.toLowerCase().contains('session');
+        if (serverMessage.toLowerCase().contains('id-token-expired') ||
+            serverMessage.toLowerCase().contains('session has expired')) {
+          throw const CallingServiceException(
+            'Your session has expired. Please sign in again.',
+            statusCode: 401,
+          );
+        }
         throw CallingServiceException(
-          isSessionExpired
-              ? 'Your session has expired. Please sign in again.'
-              : (serverMessage.isNotEmpty ? serverMessage : 'Authentication required. Please sign in again.'),
+          serverMessage.isNotEmpty
+              ? 'Calling authentication failed: $serverMessage'
+              : 'Calling authentication failed (HTTP 401).',
           statusCode: 401,
         );
       } else if (statusCode == 403) {

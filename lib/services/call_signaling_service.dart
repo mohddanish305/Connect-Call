@@ -257,6 +257,13 @@ class CallSignalingService {
 
         debugPrint('[ACCEPT DEBUG] 06 update accepted START');
         if (currentStatus != CallStatus.accepted.name) {
+          debugPrint(
+            '[CALL STATUS]\n'
+            'callId=$callId\n'
+            'oldStatus=${currentStatus ?? "none"}\n'
+            'newStatus=accepted\n'
+            'source=CallSignalingService.acceptCallSafely',
+          );
           transaction.update(docRef, {
             'status': CallStatus.accepted.name,
             'acceptedAt': FieldValue.serverTimestamp(),
@@ -278,6 +285,13 @@ class CallSignalingService {
               curStatus == CallStatus.calling.name ||
               curStatus == CallStatus.accepted.name) {
             if (curStatus != CallStatus.accepted.name) {
+              debugPrint(
+                '[CALL STATUS]\n'
+                'callId=$callId\n'
+                'oldStatus=${curStatus ?? "none"}\n'
+                'newStatus=accepted\n'
+                'source=CallSignalingService.acceptCallSafely.fallback',
+              );
               await docRef.update({
                 'status': CallStatus.accepted.name,
                 'acceptedAt': FieldValue.serverTimestamp(),
@@ -313,6 +327,13 @@ class CallSignalingService {
           return false;
         }
 
+        debugPrint(
+          '[CALL STATUS]\n'
+          'callId=$callId\n'
+          'oldStatus=${currentStatus ?? "none"}\n'
+          'newStatus=rejected\n'
+          'source=CallSignalingService.rejectCallSafely',
+        );
         transaction.update(docRef, {
           'status': CallStatus.rejected.name,
           'endedAt': FieldValue.serverTimestamp(),
@@ -347,6 +368,15 @@ class CallSignalingService {
         debugPrint('[CallSignalingService] Ignoring status update to ${status.name} because call $callId is already $currentStatus');
         return;
       }
+
+      debugPrint('[CALL TRACE 13] Firestore call status update (callId: $callId, status: ${status.name})');
+      debugPrint(
+        '[CALL STATUS]\n'
+        'callId=$callId\n'
+        'oldStatus=${currentStatus ?? "none"}\n'
+        'newStatus=${status.name}\n'
+        'source=CallSignalingService.updateCallStatus',
+      );
 
       final data = <String, dynamic>{
         'status': status.name,
